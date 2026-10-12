@@ -1,0 +1,83 @@
+/*
+ * デザイントークン
+ * 配色はデジタル庁デザインシステム（DADS）のプリミティブカラーに合わせています。
+ * Sumi / Sea / Forest / Wood / Sun の 5 系統を使います。
+ */
+:root {
+  /* Sumi — 無彩色 */
+  --sumi-1200: #000000;
+  --sumi-1000: #111111;
+  --sumi-900: #1a1a1c;
+  --sumi-800: #414143;
+  --sumi-700: #626264;
+  --sumi-600: #7f7f78;
+  --sumi-500: #949497;
+  --sumi-400: #b4b4b7;
+  --sumi-300: #d8d8db;
+  --sumi-200: #e8e8eb;
+  --sumi-100: #f1f1f4;
+  --sumi-50: #f8f8fb;
+
+  /* Sea — 基調色 */
+  --sea-1000: #000071;
+  --sea-900: #000082;
+  --sea-800: #0017c1;
+  --sea-700: #0031db;
+  --sea-600: #1a3ee8;
+  --sea-500: #264af4;
+  --sea-300: #7096f8;
+  --sea-100: #c5d7fb;
+  --sea-50: #e8f1fe;
+
+  /* Forest / Wood / Sun — 状態色 */
+  --forest-800: #197a4b;
+  --forest-600: #259d63;
+  --forest-50: #e6f5ec;
+  --wood-700: #c87504;
+  --wood-600: #cd820a;
+  --wood-50: #f3eee5;
+  --sun-1100: #890101;
+  --sun-800: #ec0000;
+  --sun-50: #ffe7e6;
+
+  /* セマンティック */
+  --bg: var(--sumi-100);
+  --surface: #ffffff;
+  --surface-sub: var(--sumi-50);
+  --border: var(--sumi-300);
+  --border-strong: var(--sumi-400);
+  --text: var(--sumi-900);
+  --text-sub: var(--sumi-700);
+  --text-muted: var(--sumi-600);
+  --primary: var(--sea-800);
+  --primary-hover: var(--sea-1000);
+  --primary-bg: var(--sea-50);
+  --focus-ring: var(--sea-700);
+
+  /* 深刻度（CVSS 区分に対応する状態色） */
+  --sev-critical: #890101;
+  --sev-high: #ec0000;
+  --sev-medium: #cd820a;
+  --sev-low: #264af4;
+  --sev-info: #949497;
+
+  /* カテゴリ配色（技術スタックの内訳に使う） */
+  --cat-1: #2a78d6;
+  --cat-2: #eb6834;
+  --cat-3: #1baf7a;
+  --cat-4: #eda100;
+  --cat-5: #e87ba4;
+  --cat-6: #4a3aa7;
+  --cat-other: var(--sumi-400);
+
+  /* 余白は 8px を基準にします */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --shadow: 0 1px 2px rgba(26, 26, 28, 0.06), 0 1px 6px rgba(26, 26, 28, 0.04);
+}
