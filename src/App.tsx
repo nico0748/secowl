@@ -1,6 +1,6 @@
 import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useStore } from './state'
-import { IconAlert, IconGear, IconHelp, IconHome, IconRadar, IconReport, IconSearch, IconToolbox } from './components/Icons'
+import { IconAlert, IconGear, IconHelp, IconHome, IconRadar, IconReport, IconSearch, IconTerminal, IconToolbox } from './components/Icons'
 import { LogoMark } from './components/Logo'
 import { DashboardPage } from './pages/Dashboard'
 import { SurfacesPage } from './pages/Surfaces'
@@ -16,6 +16,8 @@ import { ToolsPage } from './pages/Tools'
 import { PlaybookPage } from './pages/Playbook'
 import { DocPage } from './pages/DocPage'
 import { ScopePage } from './pages/Scope'
+import { RunPage } from './pages/Run'
+import { execAvailable } from './platform'
 import { SearchButton } from './components/SearchDialog'
 
 const NAV = [
@@ -27,6 +29,9 @@ const NAV = [
   { to: '/tools', label: 'ツール', icon: IconToolbox },
 ]
 
+/** コマンドの実行はデスクトップ版だけ。ブラウザ版では左のレールに出しません。 */
+const RUN_NAV = { to: '/run', label: '実行', icon: IconTerminal }
+
 const TITLES: Record<string, string> = {
   '/': 'ダッシュボード',
   '/surfaces': '偵察・列挙',
@@ -36,6 +41,7 @@ const TITLES: Record<string, string> = {
   '/scope': '事前準備',
   '/settings': '設定',
   '/tools': 'ツール',
+  '/run': '実行',
   '/playbook': '進め方',
   '/doc': '文書',
   '/import': 'ツール出力の取り込み',
@@ -53,7 +59,7 @@ export function App() {
           <LogoMark />
           <span className="rail-name">SecOwl</span>
         </div>
-        {NAV.map(({ to, label, icon: Icon, end }) => (
+        {(execAvailable() ? [...NAV, RUN_NAV] : NAV).map(({ to, label, icon: Icon, end }: { to: string; label: string; icon: typeof IconHome; end?: boolean }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => `rail-item${isActive ? ' active' : ''}`}>
             <Icon />
             <span>{label}</span>
@@ -95,6 +101,7 @@ export function App() {
           <Route path="/findings/:id" element={<FindingDetailPage />} />
           <Route path="/report" element={<ReportPage />} />
           <Route path="/tools" element={<ToolsPage />} />
+          <Route path="/run" element={<RunPage />} />
           <Route path="/playbook" element={<PlaybookPage />} />
           <Route path="/doc" element={<DocPage />} />
           <Route path="/scope" element={<ScopePage />} />

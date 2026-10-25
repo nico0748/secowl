@@ -3,6 +3,7 @@ import path from 'node:path'
 import { dataRoot, TEMPLATE_DIR } from './config.js'
 import { syncFindingBody, isFindingDoc, syncScopeBody, approvalComplete } from '../../shared/finding-table.js'
 import { normalizeScope, inPeriod } from '../../shared/scope.js'
+import { fence } from '../../shared/redact.js'
 import {
   readMd, writeMd, patchFrontmatter, parseSections, stringifySections, replaceSection,
   parseChecklist, setChecklistItem, today, nowStamp, slug, fillTemplate, listMd,
@@ -76,18 +77,25 @@ function scanMaxId(dir, prefix) {
 
 // <eid>/.secowl/ は作業用の隠しフォルダです（Obsidian には出ません）。
 // ids/ は採番の予約、run/ はコマンド実行の作業場所で、どちらも Git では追跡しません。
+const SECOWL_IGNORE_RULES = ['ids/', 'run/']
 const SECOWL_GITIGNORE = `# SecOwl の作業用ファイル。採番の予約（ids/）と実行の作業場所（run/）は追跡しません。
 # audit.jsonl（実行の記録）は追跡します。
-ids/
-run/
+${SECOWL_IGNORE_RULES.join('\n')}
 `
 
-/** <eid>/.secowl/ を用意し、.gitignore がなければ作ります。 */
+/** <eid>/.secowl/ を用意し、.gitignore がなければ作り、足りない行（以前のバージョンで作ったものには run/ が無い）は足します。 */
 export function secowlDir(eid) {
   const dir = ensure(path.join(engDir(eid), '.secowl'))
   const gi = path.join(dir, '.gitignore')
   if (!fs.existsSync(gi)) {
     try { fs.writeFileSync(gi, SECOWL_GITIGNORE, { encoding: 'utf8', flag: 'wx' }) } catch (e) { if (e.code !== 'EEXIST') throw e }
+  } else {
+    try {
+      const cur = fs.readFileSync(gi, 'utf8')
+      const have = cur.split(/\r?\n/).map((l) => l.trim())
+      const missing = SECOWL_IGNORE_RULES.filter((r) => !have.includes(r))
+      if (missing.length) fs.appendFileSync(gi, `${cur === '' || cur.endsWith('\n') ? '' : '\n'}${missing.join('\n')}\n`, 'utf8')
+    } catch { /* 読めないときはそのままにします */ }
   }
   return dir
 }
@@ -369,6 +377,11 @@ export function listToolLogs(eid) {
   })
 }
 
+/** Markdown の表の 1 マスに入れる値。| は列の区切り、[[ は Obsidian のウィキリンクと解釈されるため、URL として同じ意味の表記に直す。 */
+function tableCell(v) {
+  return String(v ?? '').replace(/[\r\n]+/g, ' ').replace(/\|/g, '%7C').replace(/`/g, '%60').replace(/\[\[/g, '[%5B')
+}
+
 export function createToolLog(eid, input) {
   const dir = ensure(path.join(engDir(eid), DIRS.logs))
   const { id } = reserveSeq(eid, 'log', scanMaxId(dir, 'log'))
@@ -378,6 +391,14 @@ export function createToolLog(eid, input) {
   const vars = {
     id, title, engagement: eid, tool, phase, phase_label: PHASES[phase] || phase,
     command: input.command || '', now: input.executed_at || nowStamp(), today: today(),
+    target: tableCell(input.target),
+    // アプリから実行したときだけ、終了コードと所要時間の行と、取得した出力を入れます（出力は呼び出し側で伏せ字にしてから渡します）。
+    extra_rows: [
+      input.exit_code !== undefined && input.exit_code !== null ? `\n| 終了コード | ${tableCell(input.exit_code)} |` : '',
+      Number.isFinite(input.duration_ms) ? `\n| 所要時間 | ${(input.duration_ms / 1000).toFixed(1)} 秒 |` : '',
+      input.run_note ? `\n| 実行 | ${tableCell(input.run_note)} |` : '',
+    ].join(''),
+    output: typeof input.stdout === 'string' && input.stdout !== '' ? fence(input.stdout) : '```\n```',
   }
   const file = path.join(dir, `${id}-${slug(title)}.md`)
   writeNew(file, renderTemplate('21-ツール実行ログ.md', vars, { surfaces: input.surfaces || [], findings: input.findings || [] }))

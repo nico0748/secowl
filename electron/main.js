@@ -4,6 +4,7 @@
  * React 側のコードはブラウザで動かすときと同じものです。
  */
 import { app as electronApp, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, shell } from 'electron'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -23,7 +24,7 @@ process.env.SECOWL_DEFAULT_DATA ||= PACKAGED
   ? path.join(electronApp.getPath('documents'), 'SecOwl')
   : path.join(APP_ROOT, 'data')
 
-const { startServer, setHostBridge } = await import('../server/app.js')
+const { startServer, setHostBridge, execService } = await import('../server/app.js')
 
 const STATE_FILE = path.join(userData, 'window-state.json')
 const THEME_FILE = path.join(userData, 'theme.json')
@@ -94,6 +95,60 @@ ipcMain.on('secowl:theme', (event, theme) => {
   applyWindowBackground()
 })
 
+// ---------- コマンドランナー ----------
+// 画面（レンダラー）には、実行系の API を呼ぶためのセッション鍵を IPC で渡します。鍵はこのプロセスの
+// 起動ごとに 1 本作り（終了まで同じ鍵。時間では失効しません）、メモリの上にだけ置きます（ファイル・URL・ログには出しません）。
+// 起動そのもの（secowl:exec-launch）は HTTP では受けず、ここで最後の確認（ネイティブのダイアログ）を
+// 経てから、同じプロセスの中でサーバの launch を呼びます。画面のスクリプトが乗っ取られても、
+// ネイティブのダイアログの手前で止まります。
+const execSession = crypto.randomBytes(32).toString('hex')
+let confirming = false
+
+/** 依頼元がアプリ本体のウィンドウの最上位フレーム（アプリのサーバのページ）かどうか。 */
+function trustedSender(event) {
+  const wc = mainWindow?.webContents
+  const frame = event.senderFrame
+  return !!wc && !wc.isDestroyed() && event.sender === wc && !!frame && frame === wc.mainFrame && isAppUrl(frame.url)
+}
+
+ipcMain.handle('secowl:exec-session', (event) => (trustedSender(event) ? execSession : null))
+
+/** 実行前の最後の確認。詳しい内容（引数 1 要素ずつ）は画面のダイアログで確認済みなので、ここは短くします。 */
+async function confirmNative(plan) {
+  const lines = [
+    `対象: ${plan.target}`,
+    `判定: ${plan.verdictLabel}${plan.matched ? `（${plan.matched}）` : ''}`,
+    `実行ファイル: ${plan.programPath}`,
+    `引数 ${plan.argv.length} 個 / 時間切れ ${plan.timeoutSec} 秒`,
+  ]
+  if (plan.warning) lines.push('', plan.warning)
+  const res = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: 'warning',
+    title: 'SecOwl',
+    message: `${plan.program} を実行します`,
+    detail: lines.join('\n'),
+    buttons: ['キャンセル', `${plan.program} を実行`],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  return res.response === 1
+}
+
+ipcMain.handle('secowl:exec-launch', async (event, req) => {
+  if (!trustedSender(event)) return { ok: false, status: 403, error: 'この画面からは実行できません' }
+  if (confirming) return { ok: false, status: 409, error: '別の実行の確認を待っています' }
+  confirming = true
+  try {
+    const res = await execService.launch(String(req?.eid ?? ''), String(req?.planId ?? ''), { confirm: confirmNative })
+    return res.ok ? { ok: true, jobId: res.jobId } : { ok: false, cancelled: true }
+  } catch (err) {
+    return { ok: false, status: err?.status || 400, code: err?.code, error: String(err?.message || err) }
+  } finally {
+    confirming = false
+  }
+})
+
 /** 同じサーバ（オリジンが一致する URL）かどうか。前方一致では 1234 と 12345 を取り違えるため、origin で比べます。 */
 function isAppUrl(url) {
   try {
@@ -126,12 +181,16 @@ function attachWindowOpenHandler(win) {
   guardNavigation(win)
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isAppUrl(url)) {
+      // /api/ 配下（共有バンドル・印刷用の報告書など、サーバが組み立てた HTML）には preload を付けません。
+      // 付けると、そのページの中のスクリプトから secowlDesktop（実行系の窓口）に触れてしまうためです。
+      let isApiPage = false
+      try { isApiPage = new URL(url).pathname.startsWith('/api/') } catch { /* 解釈できなければ付けません */ isApiPage = true }
       const child = new BrowserWindow({
         width: 1100,
         height: 900,
         title: 'SecOwl',
         backgroundColor: windowBackground(),
-        webPreferences: { nodeIntegration: false, contextIsolation: true, preload: PRELOAD },
+        webPreferences: { nodeIntegration: false, contextIsolation: true, ...(isApiPage ? {} : { preload: PRELOAD }) },
       })
       child.loadURL(url)
       attachWindowOpenHandler(child)
@@ -271,6 +330,7 @@ if (!electronApp.requestSingleInstanceLock()) {
         return res.canceled ? '' : res.filePaths[0]
       },
       reveal: async (target) => { await shell.openPath(target) },
+      execSession,
     })
 
     try {
@@ -300,6 +360,18 @@ if (!electronApp.requestSingleInstanceLock()) {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
   })
+
+  // 終了前に、実行中のコマンドをプロセスグループごと止め、終わるのを待ってから抜けます。
+  // （待たずに抜けると、子プロセスが残って出力や監査記録を書き終えられません）
+  let quitting = false
+  electronApp.on('before-quit', (event) => {
+    if (quitting) return
+    quitting = true
+    event.preventDefault()
+    execService.killAll({ waitMs: 5000 }).catch(() => {}).finally(() => electronApp.quit())
+  })
+  // 異常終了のときの最後の手段（同期）。待たずに残りのグループへ SIGKILL を送ります。
+  process.on('exit', () => { try { execService.killNow() } catch { /* 終了中なので何もしません */ } })
 
   electronApp.on('window-all-closed', () => {
     if (process.platform !== 'darwin') electronApp.quit()

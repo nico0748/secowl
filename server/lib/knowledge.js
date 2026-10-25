@@ -3,6 +3,7 @@ import path from 'node:path'
 import { APP_ROOT } from './config.js'
 import { readMd } from './md.js'
 import { resolveIcon } from './toolicons.js'
+import { parseCommands } from './command-templates.js'
 
 const KNOWLEDGE_DIR = path.join(APP_ROOT, 'knowledge')
 
@@ -19,6 +20,9 @@ function loadDir(sub) {
       const { data, body } = readMd(path.join(dir, f))
       const slug = f.replace(/\.md$/, '')
       const icon = sub === 'tools' ? resolveIcon(slug) : null
+      // 実行できるコマンドのテンプレート。同梱の knowledge/ からだけ読み、読み込み時に検査します（通らないものは出しません）。
+      const { commands, errors } = sub === 'tools' ? parseCommands(data.commands) : { commands: [], errors: [] }
+      if (errors.length) console.warn(`[knowledge] ${slug}.md の commands に不正な項目があります:\n  ${errors.join('\n  ')}`)
       return {
         slug,
         name: data.name || f,
@@ -32,6 +36,8 @@ function loadDir(sub) {
         tools: Array.isArray(data.tools) ? data.tools : [],
         icon: icon?.url || '',
         iconSource: icon?.source || '',
+        commands,
+        commandErrors: errors,
         body,
       }
     })

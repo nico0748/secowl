@@ -118,10 +118,17 @@ export function parseSections(body) {
   const lines = body.split('\n')
   const sections = []
   let current = { level: 0, heading: null, lines: [] }
-  let inFence = false
+  // コードの囲みは、開いた長さ以上のバッククォートだけの行で閉じる（CommonMark と同じ）。
+  // 本文に ``` で始まる行があっても、より長い囲み（fence() が作る 4 連以上）の中なら閉じない。
+  let open = 0
   for (const line of lines) {
-    if (/^\s*```/.test(line)) inFence = !inFence
-    const m = !inFence && /^(#{2,4})\s+(.*)$/.exec(line)
+    const f = /^\s*(`{3,})(.*)$/.exec(line)
+    if (open) {
+      if (f && f[1].length >= open && f[2].trim() === '') open = 0
+    } else if (f && !f[2].includes('`')) {
+      open = f[1].length
+    }
+    const m = !open && /^(#{2,4})\s+(.*)$/.exec(line)
     if (m) {
       sections.push(current)
       current = { level: m[1].length, heading: m[2].trim(), lines: [] }

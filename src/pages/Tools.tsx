@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Markdown } from '../components/Markdown'
 import { Dialog } from '../components/Dialog'
+import { execAvailable } from '../platform'
 import type { KnowledgeItem } from '../types'
 
 const PHASE_LABEL: Record<string, string> = {
@@ -120,6 +121,11 @@ export function ToolsPage() {
                       <a className="btn quiet" style={{ minHeight: 36 }} href={selected.url} target="_blank" rel="noreferrer">
                         公式サイト
                       </a>
+                    )}
+                    {tab === 'tools' && current && execAvailable() && !!selected.commands?.length && (
+                      <Link className="btn secondary" style={{ minHeight: 36 }} to={`/run?slug=${encodeURIComponent(selected.slug)}&cmd=${encodeURIComponent(selected.commands[0].id)}`}>
+                        このツールで実行
+                      </Link>
                     )}
                     {tab === 'tools' && current && (
                       <button className="btn secondary" style={{ minHeight: 36 }} onClick={() => setLogFor(selected)}>

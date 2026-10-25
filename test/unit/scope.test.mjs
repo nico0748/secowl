@@ -271,3 +271,12 @@ test('解釈できないパターンがあれば ok: false', () => {
   assert.equal(r.ok, false)
   assert.equal(r.scope.problems[0].key, 'scope_deny')
 })
+
+test('% を含む値の拒否理由: IPv6 のゾーン ID だけをゾーン ID と説明し、ホスト名への % は別の理由にする', () => {
+  assert.match(canonicalTarget('fe80::1%en0').error, /ゾーン ID/)
+  for (const raw of ['app.example.com%0aid', 'app%20x.example.com']) {
+    const e = canonicalTarget(raw).error
+    assert.ok(e, raw)
+    assert.doesNotMatch(e, /ゾーン ID/, raw)
+  }
+})

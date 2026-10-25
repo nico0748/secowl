@@ -5,6 +5,15 @@ tags: [必修, 脆弱性スキャン, テンプレート, OSS]
 url: https://github.com/projectdiscovery/nuclei
 license: MIT（無償）
 phase: [survey]
+commands:
+  - id: nuclei-scan
+    label: 深刻度 medium 以上のテンプレートで検査する（レート制限 20）
+    program: nuclei
+    args: ["-u", "{{target}}", "-severity", "medium,high,critical", "-rate-limit", "20", "-jsonl", "-o", "{{out}}"]
+    out: { format: nuclei, ext: jsonl }
+    vars:
+      - { name: target, kind: target, required: true, label: 対象, hint: "URL かホスト名を 1 つ" }
+    timeout_sec: 1800
 ---
 
 ## 機能

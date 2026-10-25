@@ -29,3 +29,7 @@ export const IconHelp = ({ size }: P) => (
 export const IconToolbox = ({ size }: P) => (
   <svg {...base(size)}><path d="M3 9.5h18V19a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /><path d="M9 9.5V6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3.5" /><path d="M3 13.5h6M15 13.5h6" /><path d="M9 12v3h6v-3" /></svg>
 )
+
+export const IconTerminal = ({ size }: P) => (
+  <svg {...base(size)}><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="m7.5 9.5 3 2.5-3 2.5" /><path d="M13 15h4" /></svg>
+)

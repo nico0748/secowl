@@ -101,7 +101,8 @@ const isMappedV4 = (v) => (v >> 32n) === 0xffffn
 function canonicalIp(s) {
   const v4 = parseIPv4(s)
   if (v4) return { ip: 4, host: v4.join('.'), big: v4ToBig(v4) }
-  if (s.includes('%')) return fail('IPv6 のゾーン ID（%…）は使えません')
+  // ゾーン ID は IPv6 らしい形のときだけそう説明する（host%0aid のようなものは、ホスト名の検査に任せる）
+  if (s.includes('%')) return /^[0-9a-fA-F:.]+%/.test(s) ? fail('IPv6 のゾーン ID（%…）は使えません') : null
   const v6 = parseIPv6(s)
   if (v6 === null) return null
   if (isMappedV4(v6)) {

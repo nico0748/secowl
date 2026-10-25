@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { DocEditor } from '../components/DocEditor'
+import { execAvailable } from '../platform'
 import { NoEngagement, SeverityPill, StatusTag } from './shared'
 
 const STATUS_OPTIONS = ['未調査', '調査中', '調査済', '対象外'].map((v) => ({ value: v, label: v }))
@@ -37,6 +38,12 @@ export function SurfaceDetailPage() {
         <h1>{surface.value || surface.title}</h1>
         <span className="tag">{surface.kind_label}</span>
         <span className="tag">{surface.status}</span>
+        {execAvailable() && surface.value && (
+          <>
+            <div className="spacer" />
+            <Link className="btn secondary" to={`/run?target=${encodeURIComponent(surface.value)}`}>このサーフェスにツールを実行</Link>
+          </>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: 'var(--sp-4)' }}>

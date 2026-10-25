@@ -4,6 +4,7 @@ import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Dialog } from '../components/Dialog'
 import { IconPlus } from '../components/Icons'
+import { execAvailable } from '../platform'
 import { NoEngagement } from './shared'
 import { PhaseGuide } from '../components/PhaseGuide'
 import { FilterBar } from '../components/FilterBar'
@@ -107,6 +108,7 @@ export function SurfacesPage() {
                 <th scope="col">ID</th><th scope="col">種別</th><th scope="col">値</th>
                 <th scope="col">ポート</th><th scope="col">サービス</th><th scope="col">製品・技術</th>
                 <th scope="col">状態</th><th scope="col">発見ツール</th>
+                {execAvailable() && <th scope="col"><span className="visually-hidden">実行</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -120,6 +122,9 @@ export function SurfacesPage() {
                   <td>{[s.product, ...s.tech].filter(Boolean).join(' / ')}</td>
                   <td>{s.status}</td>
                   <td>{s.discovered_by.join(', ')}</td>
+                  {execAvailable() && (
+                    <td className="nowrap">{s.value && <Link className="btn quiet small" to={`/run?target=${encodeURIComponent(s.value)}`}>ツールを実行</Link>}</td>
+                  )}
                 </tr>
               ))}
             </tbody>

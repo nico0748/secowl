@@ -1,4 +1,4 @@
-import type { WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
+import type { ExecAudit, ExecJob, ExecLaunchResult, ExecPlan, ExecStreamEvent, ExecTool, WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
 
 /** 読み込んだあとで別の場所からファイルが更新されていたため、保存しなかったことを示します（409）。 */
 export class StaleWriteError extends Error {
@@ -40,6 +40,58 @@ export interface SaveDocPayload {
 }
 
 const body = (v: unknown) => JSON.stringify(v)
+
+/* ---------------- コマンドランナー ---------------- */
+
+// セッション鍵は IPC で受け取り、このモジュールのメモリの上にだけ置きます（URL・ログ・localStorage には出しません）。
+let execKeyPromise: Promise<string> | null = null
+function execKey(): Promise<string> {
+  const d = window.secowlDesktop
+  if (!d?.execSession) return Promise.reject(new Error('この機能はデスクトップ版でのみ使えます'))
+  if (!execKeyPromise) {
+    execKeyPromise = d.execSession().then((k) => {
+      if (!k) throw new Error('実行の認可を取得できませんでした')
+      return k
+    }).catch((e) => { execKeyPromise = null; throw e })
+  }
+  return execKeyPromise
+}
+async function execCall<T>(url: string, init?: RequestInit): Promise<T> {
+  return call<T>(url, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), 'X-Secowl-Exec': await execKey() } })
+}
+const eidPath = (eid: string) => `/api/engagements/${encodeURIComponent(eid)}/exec`
+
+/**
+ * 出力を 1 行 1 JSON（NDJSON）で受けます。EventSource は使わず、ヘッダで認可した fetch の本文を読みます。
+ * 読み取りは行ごとに onEvent へ渡すだけで、ここでは溜めません（溜める側が上限を持ちます）。
+ */
+async function execStream(eid: string, jobId: string, opts: { after?: number; signal?: AbortSignal; onEvent: (e: ExecStreamEvent) => void }): Promise<void> {
+  const key = await execKey()
+  const res = await fetch(`${eidPath(eid)}/${encodeURIComponent(jobId)}/stream${opts.after ? `?after=${opts.after}` : ''}`, {
+    headers: { 'X-Secowl-Exec': key }, signal: opts.signal,
+  })
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => '')
+    let msg = ''
+    try { msg = JSON.parse(text).error } catch { /* JSON でなければ既定の文言 */ }
+    throw new Error(msg || `出力を読み込めませんでした（${res.status}）`)
+  }
+  const reader = res.body.getReader()
+  const dec = new TextDecoder()
+  let buf = ''
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buf += dec.decode(value, { stream: true })
+    let i: number
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i)
+      buf = buf.slice(i + 1)
+      if (!line) continue
+      try { opts.onEvent(JSON.parse(line) as ExecStreamEvent) } catch { /* 壊れた行は読み飛ばします */ }
+    }
+  }
+}
 
 export const api = {
   meta: () => call<Meta>('/api/meta'),
@@ -121,5 +173,22 @@ export const api = {
   shareUrl: (eid: string, opts: { draft: boolean; evidence: boolean; download?: boolean }) =>
     `/api/engagements/${encodeURIComponent(eid)}/share.html?draft=${opts.draft ? 1 : 0}&evidence=${opts.evidence ? 1 : 0}${opts.download ? '&download=1' : ''}`,
   printUrl: (eid: string) => `/api/engagements/${encodeURIComponent(eid)}/report/print.html`,
+  execTemplates: () => execCall<ExecTool[]>('/api/exec/templates'),
+  execPlan: (eid: string, input: { slug: string; cmdId: string; values: Record<string, string> }) =>
+    execCall<ExecPlan>(`${eidPath(eid)}/plan`, { method: 'POST', body: body(input) }),
+  execJobs: (eid: string) => execCall<ExecJob[]>(eidPath(eid)),
+  execAudit: (eid: string) => execCall<ExecAudit>(`${eidPath(eid)}/audit`),
+  execStop: (eid: string, jobId: string) =>
+    execCall<ExecJob>(`${eidPath(eid)}/${encodeURIComponent(jobId)}/stop`, { method: 'POST', body: body({}) }),
+  execImport: (eid: string, jobId: string, opts: { dryRun: boolean }) =>
+    execCall<ImportResult>(`${eidPath(eid)}/${encodeURIComponent(jobId)}/import`, { method: 'POST', body: body(opts) }),
+  execStream,
+  /** 起動の依頼。HTTP では受けず、メインプロセスの IPC（ネイティブの確認つき）に渡します。 */
+  execLaunch: async (eid: string, planId: string): Promise<ExecLaunchResult> => {
+    const d = window.secowlDesktop
+    if (!d?.execLaunch) throw new Error('この機能はデスクトップ版でのみ使えます')
+    return d.execLaunch({ eid, planId })
+  },
+
   docxUrl: (eid: string) => `/api/engagements/${encodeURIComponent(eid)}/report.docx`,
 }

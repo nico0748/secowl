@@ -743,3 +743,80 @@ textarea.scope-lines[aria-invalid='true'] { border-color: var(--app-status-error
 .tag.verdict.warn::before { content: '!' / ''; color: var(--app-status-warning); }
 .tag.verdict.ng { border-color: var(--app-status-error); }
 .tag.verdict.ng::before { content: '×' / ''; color: var(--app-status-error); }
+
+/* ---------- コマンドの実行（S6） ---------- */
+
+.run-lead { font-size: 14px; color: var(--app-text-sub); margin: 0 0 var(--sp-4); line-height: 1.7; max-width: 62em; }
+.run-layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: var(--sp-4); align-items: start; margin-bottom: var(--sp-4); }
+.run-layout > * { min-width: 0; }
+.run-pick { padding-bottom: var(--sp-3); }
+.run-group h3 { font-size: 14px; color: var(--app-text-sub); margin: var(--sp-3) 0 var(--sp-1); }
+.run-group:first-of-type h3 { margin-top: 0; }
+.run-cmd {
+  display: grid; gap: 2px; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: none; border: 0; border-radius: var(--radius-sm); padding: var(--sp-2) var(--sp-3);
+}
+.run-cmd:hover { background: var(--app-hover-layer); }
+.run-cmd.on { background: var(--app-selected-bg); color: var(--app-selected-text); }
+.run-cmd.on .run-cmd-label { font-weight: 700; }
+.run-cmd-label { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.run-cmd-sub { display: flex; align-items: center; gap: var(--sp-2); font-size: 13px; color: var(--app-text-muted); }
+.run-cmd.on .run-cmd-sub { color: inherit; }
+.run-cmd-sub code { font-family: 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace; }
+.tag.run-missing { font-size: 13px; border-style: dashed; padding: 0 6px; }
+.run-cmd-title { font-size: 14px; color: var(--app-text-sub); margin: 0 0 var(--sp-3); }
+.field .req { font-weight: 400; color: var(--app-text-muted); margin-left: 4px; }
+.run-sub, .run-done .hint, .run-confirm-note { font-size: 14px; color: var(--app-text-muted); }
+.run-next { margin-top: var(--sp-3); }
+.run-head-actions { margin-left: auto; display: flex; align-items: center; gap: var(--sp-3); }
+.run-head-actions .card-note { margin-left: 0; }
+.run-note { margin: var(--sp-3) 0 0; font-size: 14px; line-height: 1.7; color: var(--app-text-muted); }
+
+.run-live { margin-bottom: var(--sp-4); }
+.run-live .card-head { flex-wrap: wrap; align-items: center; }
+.run-cmdline { font-size: 14px; color: var(--app-text-sub); overflow-wrap: anywhere; }
+.run-output {
+  margin: 0; padding: var(--sp-3); min-height: 160px; max-height: 420px; overflow: auto;
+  background: var(--app-card-sub); border: 1px solid var(--app-border); border-radius: var(--radius-sm);
+  color: var(--app-text); font: 13px/1.55 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 4;
+}
+.run-output-empty { color: var(--app-text-muted); font-family: inherit; }
+.run-done { margin-top: var(--sp-3); display: grid; gap: var(--sp-3); }
+.run-done-line { margin: 0; font-size: 14px; line-height: 1.7; }
+.run-import { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.run-import .banner, .run-import .run-preview { flex-basis: 100%; margin: 0; }
+.run-preview { border: 1px solid var(--app-border); border-radius: var(--radius-sm); padding: var(--sp-3); background: var(--app-card-sub); font-size: 14px; display: grid; gap: var(--sp-2); justify-items: start; }
+.run-preview p, .run-preview ul { margin: 0; }
+.run-preview ul { padding-left: 1.2em; }
+
+/* 状態は色だけで示さず、文字（と記号）を必ず併記します */
+.tag.run-status.run-running { border-color: var(--app-primary); color: var(--app-primary); }
+.tag.run-status.run-running::before { content: '●'; font-size: 10px; }
+.tag.run-status.run-failed { border-color: var(--app-status-error); }
+.tag.run-status.run-failed::before { content: '×' / ''; color: var(--app-status-error); }
+.tag.run-status.warn { border-color: var(--app-status-warning); }
+.run-row-actions { display: flex; gap: var(--sp-2); }
+.run-row-actions .btn { text-decoration: none; }
+
+/* 実行前の確認 */
+.run-facts { display: grid; grid-template-columns: 9em minmax(0, 1fr); gap: var(--sp-3) var(--sp-4); margin: 0; font-size: 14px; }
+.run-facts dt { color: var(--app-text-sub); font-weight: 700; padding-top: 2px; }
+.run-facts dd { margin: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-3); overflow-wrap: anywhere; }
+.run-facts code { font-family: 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace; font-size: 13px; }
+.run-facts .hint { font-size: 14px; color: var(--app-text-muted); }
+.run-facts .run-reason { flex-basis: 100%; }
+.argv-list { list-style: none; margin: 0; padding: 0; width: 100%; border: 1px solid var(--app-border); border-radius: var(--radius-sm); background: var(--app-card-sub); }
+.argv-list li { display: grid; grid-template-columns: 2.4em minmax(0, 1fr); align-items: baseline; padding: 4px var(--sp-3); border-bottom: 1px solid var(--app-divider); }
+.argv-list li:last-child { border-bottom: 0; }
+.argv-n { color: var(--app-text-muted); font-size: 13px; text-align: right; padding-right: var(--sp-3); font-variant-numeric: tabular-nums; }
+.argv-list code { font-size: 13px; overflow-wrap: anywhere; }
+.run-confirm-note { margin: var(--sp-2) 0 0; text-align: right; }
+
+@media (max-width: 1100px) {
+  .run-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .run-facts { grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); }
+  .run-facts dd { margin-bottom: var(--sp-2); }
+}

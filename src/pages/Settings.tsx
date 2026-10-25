@@ -213,6 +213,27 @@ function GitSection() {
         </>
       ) : (
         <>
+          {(status.ignoreMissing?.length ?? 0) > 0 && (
+            <div className="banner warn">
+              <div>
+                <p className="banner-text">
+                  コマンド実行の生の出力は Cookie やトークンを伏せていないため、Git の履歴には入れないでください。次の行が .gitignore にまだありません。
+                </p>
+                <ul className="banner-list">{status.ignoreMissing!.map((r) => <li key={r}><code>{r}</code></li>)}</ul>
+                <div className="banner-actions">
+                  <button className="btn small" disabled={busy} onClick={() => act(() => api.gitInit(false), '.gitignore に追記しました')}>.gitignore に追記する</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {(status.rawTracked ?? 0) > 0 && (
+            <div className="banner error">
+              <p className="banner-text">
+                生の出力や作業ファイルが、すでに Git の追跡対象になっています（{status.rawTracked} 件）。
+                .gitignore に書いても、追跡中のファイルは外れません。公開や共有の前に、ターミナルで <code>git rm -r --cached</code> を使って追跡から外してください。履歴に残ったものは、履歴ごと書き換える必要があります。
+              </p>
+            </div>
+          )}
           <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
             未コミットの変更: {status.changes?.length ?? 0} 件
           </p>

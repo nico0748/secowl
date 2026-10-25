@@ -1,4 +1,5 @@
 import express from 'express'
+import crypto from 'node:crypto'
 import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -25,10 +26,31 @@ import { progress } from './lib/progress.js'
 import { localOnly } from './lib/guard.js'
 import { checkReport } from './lib/reportable.js'
 import { searchDocs } from './lib/search.js'
+import { createExec, ExecError, JOB_ID_RE } from './lib/exec.js'
 
 export const app = express()
 // 最初に登録し、静的ファイルを含むすべての要求に効かせます。
 app.use(localOnly)
+
+// 画面（HTML・JS・CSS）には、自分のオリジンのスクリプトだけを許す CSP を付けます。API の応答には付けません
+// （共有バンドルなどは書き出し側で独自の CSP を持ちます）。Vite の開発サーバ経由のときはこのヘッダは付きません。
+const APP_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ')
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) res.setHeader('Content-Security-Policy', APP_CSP)
+  next()
+})
+
 app.use(express.json({ limit: '8mb' }))
 
 /**
@@ -37,6 +59,62 @@ app.use(express.json({ limit: '8mb' }))
  */
 let host = null
 export function setHostBridge(bridge) { host = bridge }
+
+/**
+ * コマンドランナー。ブラウザ運用（host がない）ではルートが存在しないものとして 404 を返します。
+ * デスクトップ版では、メインプロセスが IPC で画面に渡すセッション鍵（アプリを起動するたびに 1 本作り、終了まで使います）（host.execSession）を
+ * X-Secowl-Exec ヘッダで要求します。鍵は URL にも、ログにも、localStorage にも出しません。
+ * 起動（launch）は HTTP のルートを持たず、メインプロセスが IPC で受けて直接呼びます。
+ */
+export const execService = createExec()
+
+const sha = (s) => crypto.createHash('sha256').update(String(s)).digest()
+function safeEq(a, b) {
+  if (typeof a !== 'string' || !a || typeof b !== 'string' || !b) return false
+  return crypto.timingSafeEqual(sha(a), sha(b))
+}
+function requireExec(req, res, next) {
+  if (!host || !host.execSession) return res.status(404).json({ error: 'not found' })
+  if (!safeEq(req.headers['x-secowl-exec'], host.execSession)) return res.status(403).json({ error: '実行の認可がありません' })
+  next()
+}
+function requireEngagement(req, res, next) {
+  if (!getEngagement(req.params.eid)) return res.status(404).json({ error: '診断対象が見つかりません' })
+  next()
+}
+const execWrap = (fn) => async (req, res) => {
+  try {
+    const out = await fn(req, res)
+    if (out !== undefined) res.json(out)
+  } catch (err) {
+    if (res.headersSent) return res.end()
+    if (err instanceof ExecError) return res.status(err.status).json({ error: err.message, code: err.code })
+    res.status(400).json({ error: String(err?.message || err) })
+  }
+}
+const jobParam = (req) => {
+  if (!JOB_ID_RE.test(req.params.job)) throw new ExecError(404, 'NO_JOB', 'その実行の記録はありません')
+  return req.params.job
+}
+const execRouter = express.Router({ caseSensitive: true, strict: true })
+execRouter.use('/exec', requireExec)
+execRouter.use('/engagements/:eid/exec', requireExec, requireEngagement)
+execRouter.get('/exec/templates', execWrap(() => execService.listTemplates()))
+execRouter.post('/engagements/:eid/exec/plan', execWrap((req) => execService.plan(req.params.eid, req.body || {})))
+execRouter.get('/engagements/:eid/exec', execWrap((req) => execService.list(req.params.eid)))
+// 実行の記録（監査）のつながりを確かめる。書き換えや削除があると、切れた行の番号を返す
+execRouter.get('/engagements/:eid/exec/audit', execWrap((req) => execService.verifyAudit(req.params.eid)))
+execRouter.get('/engagements/:eid/exec/:job', execWrap((req) => execService.publicJob(execService.getJob(req.params.eid, jobParam(req)))))
+execRouter.get('/engagements/:eid/exec/:job/stream', execWrap((req, res) => {
+  const after = Number(req.headers['last-seq'] ?? req.query.after) || 0
+  execService.stream(req.params.eid, jobParam(req), req, res, { after })
+}))
+execRouter.post('/engagements/:eid/exec/:job/stop', execWrap((req) => execService.stop(req.params.eid, jobParam(req))))
+execRouter.post('/engagements/:eid/exec/:job/import', execWrap((req) => execService.importJob(req.params.eid, jobParam(req), {
+  dryRun: req.body?.dryRun !== false,
+  importFindings: req.body?.importFindings !== false,
+})))
+app.use('/api', execRouter)
 
 const wrap = (fn) => async (req, res) => {
   try {
@@ -244,7 +322,10 @@ app.get('/api/engagements/:eid/report.docx', async (req, res) => {
 
 const dist = path.join(APP_ROOT, 'dist')
 if (fs.existsSync(dist)) {
-  app.use(express.static(dist))
+  // theme-init.js だけはファイル名にハッシュが付かないので、更新したときに古いものが使われないよう毎回確かめさせる
+  app.use(express.static(dist, {
+    setHeaders: (res, file) => { if (path.basename(file) === 'theme-init.js') res.setHeader('Cache-Control', 'no-cache') },
+  }))
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) return res.status(404).json({ error: 'not found' })
     res.sendFile(path.join(dist, 'index.html'))

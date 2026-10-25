@@ -11,21 +11,8 @@
     <meta name="theme-color" content="#EFEDF1" media="(prefers-color-scheme: light)" data-scheme="light" data-color="#EFEDF1" />
     <meta name="theme-color" content="#0D0E11" media="(prefers-color-scheme: dark)" data-scheme="dark" data-color="#0D0E11" />
     <meta name="color-scheme" content="light dark" />
-    <script>
-      // 最初の描画の前にテーマを決めます（ちらつき防止）。規則は src/theme.ts と同じです。
-      try {
-        // デスクトップ版は preload が渡す値を正とします（起動ごとにポートが変わり localStorage が引き継がれないため）
-        var d = window.secowlDesktop && window.secowlDesktop.theme
-        var t = d || localStorage.getItem('secowl.theme')
-        if (t === 'light' || t === 'dark') {
-          document.documentElement.dataset.theme = t
-          document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
-            m.content = t === 'dark' ? '#0D0E11' : '#EFEDF1'
-          })
-          document.querySelector('meta[name="color-scheme"]').content = t
-        }
-      } catch (e) { /* 読めない環境では OS に合わせます */ }
-    </script>
+    <!-- 最初の描画の前にテーマを決めます（public/theme-init.js）。CSP の script-src 'self' のため外部ファイルにしています -->
+    <script src="/theme-init.js"></script>
     <title>SecOwl — 脆弱性調査支援</title>
   </head>
   <body>

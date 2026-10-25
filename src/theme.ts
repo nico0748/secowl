@@ -10,7 +10,14 @@ const KEY = 'secowl.theme'
 declare global {
   interface Window {
     /** Electron 版の preload が公開する窓口。ブラウザ版では undefined。 */
-    secowlDesktop?: { theme?: ThemePref; setTheme?: (pref: ThemePref) => void }
+    secowlDesktop?: {
+      theme?: ThemePref
+      setTheme?: (pref: ThemePref) => void
+      /** コマンドランナーの API に付ける、アプリの起動ごとの鍵（メインプロセスが IPC で渡す） */
+      execSession?: () => Promise<string | null>
+      /** 起動の依頼。メインプロセスのネイティブの確認を経てから起動する */
+      execLaunch?: (req: { eid: string; planId: string }) => Promise<import('./types').ExecLaunchResult>
+    }
   }
 }
 

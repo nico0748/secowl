@@ -183,6 +183,10 @@ export interface GitStatus {
   branch?: string
   changes?: GitChange[]
   hasGitignore: boolean
+  /** .gitignore に書かれていない、生の出力などを追跡させないための行 */
+  ignoreMissing?: string[]
+  /** すでに追跡されている生の出力・作業場所のファイル数 */
+  rawTracked?: number
 }
 
 export interface GitCommit { hash: string; author: string; date: string; subject: string }
@@ -235,8 +239,136 @@ export interface KnowledgeItem {
   tools: string[]
   icon: string
   iconSource: '' | 'icon' | 'cover' | 'tile'
+  /** 実行できるコマンドのテンプレート（knowledge/tools の commands:）。ツールのページだけが持つ。 */
+  commands?: CommandTemplate[]
   body: string
 }
+
+/* ---------------- コマンドランナー ---------------- */
+
+export interface CommandVar {
+  name: string
+  kind: 'target' | 'ports' | 'text'
+  required: boolean
+  default?: string
+  label?: string
+  hint?: string
+  accept?: string[]
+  pattern?: string
+}
+
+export interface CommandTemplate {
+  id: string
+  label: string
+  program: string
+  args: string[]
+  out: { format?: string; ext: string } | null
+  vars: CommandVar[]
+  timeout_sec: number
+  hash?: string
+}
+
+export interface ExecCommand extends CommandTemplate {
+  /** このPCに実行ファイルがあり、実行してよい権限か */
+  available: boolean
+  programPath: string | null
+  /** 使えない理由の種類: missing = 見つからない、unsafe = 他のユーザーが書き換えられる場所にある */
+  unavailableKind: 'missing' | 'unsafe' | null
+  unavailableReason: string | null
+}
+
+export interface ExecTool {
+  slug: string
+  name: string
+  icon: string
+  phase: string[]
+  commands: ExecCommand[]
+}
+
+export interface ExecPlan {
+  planId: string
+  expiresAt: string
+  slug: string
+  toolName: string
+  cmdId: string
+  label: string
+  program: string
+  programPath: string | null
+  programIssue: 'missing' | 'unsafe' | null
+  /** 実行ファイルに渡す引数（1 要素ずつ。シェルの文字列にはしない） */
+  argv: string[]
+  command: string
+  /** 判定にも引数にも使う、正規化済みの対象 */
+  target: string
+  targetKind: string
+  /** 入力した値が正規化で変わったときだけ入る */
+  inputTarget: string | null
+  scopeVerdict: 'in' | 'allow' | 'out' | 'deny' | 'invalid'
+  verdictLabel: string
+  matched: string | null
+  scopeReason: string
+  warning: string | null
+  agreed: boolean
+  inPeriod: boolean
+  periodReason: string
+  blocked: boolean
+  reason: string
+  reasons: string[]
+  outPath: string | null
+  outFormat: string | null
+  timeoutSec: number
+  dns: { addresses: string[]; error?: string; skipped?: boolean; warning: string | null; blocked: boolean }
+}
+
+export type ExecStatus = 'running' | 'done' | 'failed' | 'stopped' | 'timeout' | 'interrupted'
+
+export interface ExecJob {
+  id: string
+  eid: string
+  slug: string
+  cmdId: string
+  label: string
+  toolName: string
+  program: string
+  programPath: string | null
+  argv: string[]
+  command: string
+  target: string
+  scopeVerdict: string
+  agreed: boolean | null
+  inPeriod: boolean | null
+  outFormat: string | null
+  outExt: string | null
+  timeoutSec: number
+  status: ExecStatus
+  startedAt: string
+  endedAt: string | null
+  durationMs: number | null
+  exitCode: number | null
+  signal: string | null
+  logId: string | null
+  logFile: string | null
+  outFile: string | null
+  outBytes: number | null
+  imported: { at: string; surfaces: number; findings: number } | null
+  /** ツール実行ログを書けなかったときの理由 */
+  logError?: string | null
+}
+
+/** 実行の記録（監査）のつながりの検証結果 */
+export interface ExecAudit { ok: boolean; lines: number; brokenAt: number | null }
+
+export type ExecStreamEvent =
+  | { t: 'start'; job: ExecJob }
+  | { t: 'c'; seq: number; s: 'out' | 'err'; x: string }
+  | { t: 'gap'; from: number; to: number }
+  | { t: 'hb' }
+  | { t: 'overflow'; after: number }
+  | { t: 'end'; job: ExecJob }
+
+export type ExecLaunchResult =
+  | { ok: true; jobId: string }
+  | { ok: false; cancelled?: boolean; status?: number; code?: string; error?: string }
 
 export interface Knowledge {
   tools: KnowledgeItem[]

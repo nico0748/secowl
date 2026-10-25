@@ -5,6 +5,16 @@ tags: [ディレクトリ探索, DNS, 仮想ホスト, OSS]
 url: https://github.com/OJ/gobuster
 license: Apache-2.0
 phase: [recon, survey]
+commands:
+  - id: gobuster-dir
+    label: ディレクトリ探索（同時 10）
+    program: gobuster
+    args: ["dir", "-u", "{{target}}", "-w", "{{wordlist}}", "-t", "10", "-o", "{{out}}"]
+    out: { format: gobuster, ext: txt }
+    vars:
+      - { name: target, kind: target, required: true, label: 対象の URL, hint: "例: https://example.com/", accept: [url] }
+      - { name: wordlist, kind: text, required: true, label: ワードリストのパス, hint: "例: /usr/share/wordlists/dirb/common.txt（置き場所は /usr/share・Homebrew の share・/opt・自分のホームフォルダの直下にある wordlists / seclists / SecLists / dirb / dirbuster の下、拡張子は .txt か .lst だけ）", pattern: '(?!.*\.\.)(?:/usr/share|/usr/local/share|/opt/homebrew/share|/opt|/Users/[A-Za-z0-9_.-]+|/home/[A-Za-z0-9_.-]+)/(?:wordlists|seclists|SecLists|dirb|dirbuster)(?:/[A-Za-z0-9_.+~-]+)+\.(?:txt|lst)' }
+    timeout_sec: 900
 ---
 
 ## 機能
