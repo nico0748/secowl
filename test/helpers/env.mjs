@@ -8,6 +8,8 @@
  * - node --test の子プロセス（NODE_TEST_CONTEXT が付く）は、ファイルごとに新しい一時フォルダを作ります。
  * - テストが fork したワーカーなどが明示的にこのファイルを読み込んだときは、親が作った一時フォルダ
  *   （SECOWL_TEST_TMP）をそのまま使います。利用者のシェルにある SECOWL_DATA は使いません。
+ * - git のコミットに使う名前とメールも、ここで決めます。開発機には ~/.gitconfig がありますが、
+ *   CI の実行環境には無く、git commit が「Author identity unknown」で失敗するためです。
  */
 import fs from 'node:fs'
 import os from 'node:os'
@@ -27,3 +29,9 @@ if (!reuse) {
     try { fs.rmSync(tmp, { recursive: true, force: true }) } catch { /* 片付けに失敗しても結果は変えません */ }
   })
 }
+
+// 保存先の git を触るテストのため。すでに指定されていればそれを使います（fork した子にも環境として渡ります）。
+process.env.GIT_AUTHOR_NAME ||= 'SecOwl test'
+process.env.GIT_AUTHOR_EMAIL ||= 'test@example.invalid'
+process.env.GIT_COMMITTER_NAME ||= process.env.GIT_AUTHOR_NAME
+process.env.GIT_COMMITTER_EMAIL ||= process.env.GIT_AUTHOR_EMAIL
