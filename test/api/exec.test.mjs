@@ -363,9 +363,12 @@ test('起動: 引数は配列のまま spawn に渡り、環境は最小限で�
   const log = readLog(job)
   const envLine = /ENV:(\[.*\])/.exec(log)
   assert.ok(envLine, '子プロセスの環境変数の一覧がログにある')
-  const keys = JSON.parse(envLine[1])
+  const allKeys = JSON.parse(envLine[1])
+  // macOS では、渡していない __CF_USER_TEXT_ENCODING を CoreFoundation が子プロセス側で自分で足します。
+  // 渡したものだけを厳密に見たいので、OS が足す __CF_* は除いて比べます。
+  const keys = allKeys.filter((k) => !/^__CF_/.test(k))
   assert.deepEqual(keys.sort(), ['HOME', 'LANG', 'LC_ALL', 'PATH', 'TERM', 'TMPDIR'].sort())
-  assert.equal(keys.some((k) => /^SECOWL_|TOKEN|_KEY|^ELECTRON_|^NODE_/.test(k)), false)
+  assert.equal(allKeys.some((k) => /^SECOWL_|TOKEN|_KEY|^ELECTRON_|^NODE_/.test(k)), false)
   assert.match(log, new RegExp(`PATH:${fs.realpathSync(bin) === bin ? bin : '.*'}`))
   // 作業フォルダは取得データ/ ではなく .secowl/run/<jobId>/
   assert.match(log, new RegExp(`CWD:.*\\.secowl/run/${job.id}`))
