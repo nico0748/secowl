@@ -8,6 +8,7 @@
  *   --hold SEC          SEC 秒待つ（停止・時間切れの確認用）
  *   --grandchild SEC    出力を握ったまま SEC 秒生きる孫（sleep）を作る
  *   --stubborn          孫を SIGTERM を無視するものにする（SIGKILL までの段階の確認用）
+ *   --detached-grandchild SEC  出力を握ったまま SEC 秒生きる孫を、別のプロセスグループに作る（枠の返り方の確認用）
  *   --trickle N         N 行を 350ms おきに出す（ライブ出力の確認用）
  *   --splitsecret       4KB を超える行の途中で read が分かれる位置に、JWT / Cookie を置いて出す（強制フラッシュの境界の確認用）
  *   --longline N        N 文字の 1 行を 20000 文字ずつ書く（行の上限の確認用）
@@ -64,6 +65,12 @@ async function longOutputs() {
 if (flag('--html')) process.stdout.write('<img src=x onerror="window.__xss=1"><script>window.__xss=1</script> <b>bold?</b>\n')
 const outFile = val('-oX') || val('-o')
 if (outFile) fs.copyFileSync(path.join(__dirname, '..', 'fixtures', 'nmap.xml'), outFile)
+// 出力を握ったまま SEC 秒生きる孫を、別のプロセスグループに作ります。グループへの SIGTERM・SIGKILL が
+// 届かないので、「先頭プロセスが終わっても出力が閉じない」状態をどの OS でも同じように作れます。
+// （--stubborn の trap はシェルの実装に左右されます）
+if (val('--detached-grandchild')) {
+  spawn('/bin/sleep', [String(Number(val('--detached-grandchild')))], { stdio: 'inherit', detached: true }).unref()
+}
 if (val('--grandchild')) {
   const sec = String(Number(val('--grandchild')))
   // exec で置き換えても、無視にした SIGTERM の扱いは引き継がれます

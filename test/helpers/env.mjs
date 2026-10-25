@@ -19,7 +19,9 @@ const inherited = process.env.SECOWL_TEST_TMP
 const reuse = inherited && !process.env.NODE_TEST_CONTEXT && fs.existsSync(inherited)
 
 if (!reuse) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-test-'))
+  // realpath にそろえます。macOS の os.tmpdir() は /var/folders/...（/private/var へのシンボリックリンク）を返し、
+  // 製品側は実体のパスで比べるため、そろえないと比較がずれます。
+  const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-test-')))
   process.env.SECOWL_TEST_TMP = tmp
   process.env.SECOWL_DATA = path.join(tmp, 'data')
   process.env.SECOWL_CONFIG = path.join(tmp, 'secowl.config.json')

@@ -5,6 +5,7 @@ import test, { before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
+import matter from 'gray-matter'
 import { seed, E } from '../helpers/seed.mjs'
 import { startTestServer, client, raw } from '../helpers/server.mjs'
 import { makeBin, RAW_COMMANDS } from '../helpers/exec-fixture.mjs'
@@ -424,7 +425,10 @@ test('command も argv と同じく伏せ字: 画面・job.json・ツール実�
   assert.equal(saved.includes('eyJ'), false, 'job.json')
   const log = readLog(job)
   assert.equal(log.includes('eyJ'), false, 'ツール実行ログ（frontmatter・bash ブロック・出力）')
-  assert.match(log, /^command: .*REDACTED/m)
+  // frontmatter を読んで確かめます。command は長いと YAML が複数行に折るため、1 行として照合できません。
+  const fm = matter(log).data
+  assert.ok(String(fm.command).includes('[REDACTED]'), `frontmatter の command が伏せ字: ${fm.command}`)
+  assert.equal(String(fm.command).includes('eyJ'), false, 'frontmatter の command')
   assert.equal(fs.readFileSync(path.join(DATA(), E, '.secowl', 'audit.jsonl'), 'utf8').includes('eyJ'), false, '監査')
   const stream = await raw(srv.baseUrl, 'GET', `/api/engagements/${E}/exec/${job.id}`, { headers: auth })
   assert.equal(stream.text.includes('eyJ'), false, 'API の応答')
@@ -602,7 +606,7 @@ test('時間切れ: timeout_sec を超えたら止めて timeout にする（孫
 test('同時実行の上限。枠は close ではなく先頭プロセスの exit で戻る', { skip: SKIP }, async () => {
   exec.configure({ concurrency: 1, drainMs: 1500 })
   try {
-    // 先頭プロセスはすぐ終わるが、孫が出力を握り続ける
+    // 先頭プロセスはすぐ終わるが、別のプロセスグループに作った孫が出力を握り続ける
     const a = await launch(await plan('orphan', { target: 'app.example.com' }))
     const jobA = exec.getJob(E, a.jobId)
     await waitFor(() => jobA.exited, 3000, '先頭プロセスの終了')
@@ -617,7 +621,7 @@ test('同時実行の上限。枠は close ではなく先頭プロセスの exi
     await jobB.finished
     await jobA.finished
     assert.equal(exec._state().slots, 0)
-    await waitFor(() => !alive(jobA.child.pid), 5000, '孫の終了')
+    await waitFor(() => !alive(jobA.child.pid), 5000, 'プロセスグループの終了')
     const c = await launch(await plan('plain', { target: 'app.example.com' }))
     await finished(c.jobId)
   } finally {

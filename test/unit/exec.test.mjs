@@ -7,8 +7,12 @@ import { createExec, cleanLine, displayCommand, defaultSearchPaths, Collector, t
 
 const SKIP = process.platform === 'win32' ? 'POSIX のみ' : false
 
+// 実体のパスで作ります。macOS の os.tmpdir() は /var/folders/...（/private/var へのシンボリックリンク）を返し、
+// resolveProgram は realpath で答えるため、そろえないと期待値と一致しません。
+const tmpdir = (prefix) => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)))
+
 const mkbin = (mode = 0o755, dirMode = 0o700) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-unit-bin-'))
+  const dir = tmpdir('secowl-unit-bin-')
   fs.chmodSync(dir, dirMode)
   const file = path.join(dir, 'fakenmap')
   fs.writeFileSync(file, '#!/bin/sh\nexit 0\n')
@@ -32,7 +36,7 @@ test('プログラムの解決: allow-list の名前だけを、探索パスの�
 })
 
 test('プログラムの解決: 見つからないときは探した場所を示す。他者が書き換えられるものは unsafe', { skip: SKIP }, () => {
-  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-unit-empty-'))
+  const empty = tmpdir('secowl-unit-empty-')
   const x = createExec({ allowed: new Set(['fakenmap']), searchPaths: [empty] })
   const missing = x.resolveProgram('fakenmap')
   assert.equal(missing.found, false)
@@ -52,7 +56,7 @@ test('プログラムの解決: 見つからないときは探した場所を示
 })
 
 test('プログラムの解決: 探索パスのディレクトリが書き換えられるなら、リンク先が安全でも unsafe（P2-3）', { skip: SKIP }, () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-unit-link-'))
+  const root = tmpdir('secowl-unit-link-')
   process.on('exit', () => { try { fs.rmSync(root, { recursive: true, force: true }) } catch { /* 片付け */ } })
   fs.chmodSync(root, 0o755)
   const mk = (rel, mode) => { const d = path.join(root, rel); fs.mkdirSync(d, { recursive: true }); fs.chmodSync(d, mode); return d }

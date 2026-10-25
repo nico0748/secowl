@@ -33,7 +33,7 @@ export const RAW_COMMANDS = [
   cmd('plain', { args: ['{{target}}'] }),
   cmd('slow', { args: ['--hold', '30', '--grandchild', '30', '{{target}}'] }),
   cmd('timeout', { args: ['--hold', '30', '--grandchild', '30', '{{target}}'], timeout_sec: 1 }),
-  cmd('orphan', { args: ['--grandchild', '30', '--stubborn', '{{target}}'] }),
+  cmd('orphan', { args: ['--detached-grandchild', '10', '{{target}}'] }),
   cmd('stubborn', { args: ['--hold', '30', '--grandchild', '30', '--stubborn', '{{target}}'] }),
   cmd('noisy', { args: ['--noisy', '2600', '{{target}}'] }),
   cmd('splitsecret', { args: ['--splitsecret', '{{target}}'] }),
