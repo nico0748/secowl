@@ -1,0 +1,2 @@
+{"url":"https://app.example.com","input":"app.example.com","host":"198.51.100.10","port":"443","scheme":"https","title":"Example Shop","status_code":200,"webserver":"nginx/1.25.3","tech":["Nginx","React"]}
+{"url":"http://api.example.com","input":"api.example.com","host":"198.51.100.12","port":"80","scheme":"http","title":"API","status_code":301,"webserver":"envoy","tech":[]}

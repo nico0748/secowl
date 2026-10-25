@@ -2,11 +2,17 @@
 type: vs-scope
 title: "{{title}}"
 engagement: "{{engagement}}"
-client: ""
-target_system: ""
-period_from: ""
-period_to: ""
+client: "{{client}}"
+target_system: "{{target_system}}"
+period_from: "{{period_from}}"
+period_to: "{{period_to}}"
 agreed: false
+agreed_at: ""
+agreed_by: ""
+scope_targets: []
+scope_allow: []
+scope_deny: []
+scope_ports: []
 created: {{today}}
 updated: {{today}}
 tags:

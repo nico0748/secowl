@@ -417,7 +417,7 @@ function seedShop() {
   section(eid, docPaths(eid).scope, '5. 実施条件',
     '- 検証時間帯: 平日 10:00–17:00\n- 診断元 IP（許可リストへ登録する値）: 203.0.113.64/28\n- WAF / IPS の有無と除外申請: Cloudflare WAF あり。診断元 IP を除外済み\n- 緊急停止条件（誰が、どの条件で停止を宣言するか）: 本番の注文処理に影響が出た時点で、双方いずれかが電話で停止を宣言する\n- データ取扱い: 証跡の機微情報はマスキングします。NDA: 有')
 
-  writeDoc(docPaths(eid).scope, { data: { agreed: true, status: 'agreed' } })
+  writeDoc(docPaths(eid).scope, { data: { agreed: true, agreed_at: '2026-09-29', agreed_by: '情報システム部 部長 鈴木', status: 'agreed' } })
 
   // --- 攻撃面マップ ---
   section(eid, docPaths(eid).surfaceMap, '1. 構成の概観',
@@ -499,7 +499,7 @@ function seedApi() {
     writeDoc(res.file, { data: { status: f.status, retest_result: f.retest } })
   }
 
-  writeDoc(docPaths(eid).scope, { data: { agreed: true, status: 'agreed' } })
+  writeDoc(docPaths(eid).scope, { data: { agreed: true, agreed_at: '2026-08-28', agreed_by: '情報システム部 課長 佐藤', status: 'agreed' } })
   section(eid, docPaths(eid).report, '1.3 総評',
     'JWT の署名検証不備と口座残高 API の認可不備は、いずれも修正を確認しました。\nレート制限は本番の構成変更を伴うため、次回のリリースに合わせた対応で合意しています。')
   buildReport(eid)

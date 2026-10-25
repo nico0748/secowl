@@ -1,12 +1,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { dataRoot } from './config.js'
+import { engDir } from './store.js'
 
 const ALLOWED = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }
 const MAX_BYTES = 12 * 1024 * 1024
 
 export function evidenceDir(eid) {
-  const dir = path.join(dataRoot(), eid, 'evidence')
+  const dir = path.join(engDir(eid), 'evidence')
   fs.mkdirSync(dir, { recursive: true })
   return dir
 }

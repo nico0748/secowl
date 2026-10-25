@@ -34,6 +34,12 @@ const GITIGNORE_EVIDENCE = `
 */evidence/
 `
 
+// アプリから実行したツールの生の出力。伏せていない資格情報が入りうるため、証跡の扱いに関係なく追跡しません。
+const GITIGNORE_RAW = `
+# ツールの生の出力（Cookie やトークンを伏せていません）
+*/20-調査/取得データ/
+`
+
 export async function status() {
   const cwd = dataRoot()
   if (!fs.existsSync(path.join(cwd, '.git'))) {
@@ -61,7 +67,7 @@ export async function init({ trackEvidence = false } = {}) {
   if (!fs.existsSync(path.join(cwd, '.git'))) await git(['init', '-b', 'main'], cwd)
   const file = path.join(cwd, '.gitignore')
   if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, GITIGNORE_BASE + (trackEvidence ? '' : GITIGNORE_EVIDENCE), 'utf8')
+    fs.writeFileSync(file, GITIGNORE_BASE + (trackEvidence ? '' : GITIGNORE_EVIDENCE) + GITIGNORE_RAW, 'utf8')
   }
   return status()
 }

@@ -1,16 +1,17 @@
 import express from 'express'
+import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { readConfig, writeConfig, dataRoot, APP_ROOT } from './lib/config.js'
 import {
-  listEngagements, createEngagement, getEngagement,
+  listEngagements, createEngagement, getEngagement, updateEngagement,
   listSurfaces, createSurface, listFindings, createFinding,
   listToolLogs, createToolLog, readDoc, writeDoc, toggleChecklist, docPaths, ensureDocs,
   SURFACE_KINDS, PHASES,
 } from './lib/store.js'
 import { dashboard } from './lib/stats.js'
-import { buildReport } from './lib/report.js'
-import { SEVERITY_META, SEVERITIES } from './lib/severity.js'
+import { buildReport, findingBlock } from './lib/report.js'
+import { SEVERITY_META, SEVERITIES, FINDING_STATUS } from './lib/severity.js'
 import { parseToolOutput, IMPORT_FORMATS } from './lib/importers.js'
 import { importIntoEngagement } from './lib/store.js'
 import { listEvidence, saveEvidence, deleteEvidence, evidenceDir, evidenceMime } from './lib/evidence.js'
@@ -21,8 +22,13 @@ import { mcpInfo } from './lib/mcpinfo.js'
 import { knowledge } from './lib/knowledge.js'
 import { playbookIndex, findPhase } from './lib/playbook.js'
 import { progress } from './lib/progress.js'
+import { localOnly } from './lib/guard.js'
+import { checkReport } from './lib/reportable.js'
+import { searchDocs } from './lib/search.js'
 
 export const app = express()
+// 最初に登録し、静的ファイルを含むすべての要求に効かせます。
+app.use(localOnly)
 app.use(express.json({ limit: '8mb' }))
 
 /**
@@ -37,6 +43,10 @@ const wrap = (fn) => async (req, res) => {
     const out = await fn(req, res)
     if (out !== undefined) res.json(out)
   } catch (err) {
+    // 読み込んだあとで別の場所から更新されていたときは 409 と、いまの内容・衝突した見出しを返します。
+    if (err?.code === 'STALE_WRITE') {
+      return res.status(409).json({ error: String(err.message), code: 'STALE_WRITE', conflicts: err.conflicts || [], current: err.current ?? null })
+    }
     res.status(400).json({ error: String(err.message || err) })
   }
 }
@@ -50,6 +60,7 @@ app.get('/api/meta', wrap(() => {
     surfaceKinds: SURFACE_KINDS,
     phases: PHASES,
     severities: SEVERITIES.map((k) => SEVERITY_META[k]),
+    findingStatuses: FINDING_STATUS,
   }
 }))
 
@@ -72,6 +83,11 @@ app.get('/api/engagements/:eid', wrap((req) => {
   return { ...e, docs: docPaths(req.params.eid) }
 }))
 
+app.put('/api/engagements/:eid', wrap((req) => {
+  if (!getEngagement(req.params.eid)) throw new Error('診断対象が見つかりません')
+  return updateEngagement(req.params.eid, req.body || {})
+}))
+
 app.get('/api/engagements/:eid/dashboard', wrap((req) => dashboard(req.params.eid)))
 
 app.get('/api/engagements/:eid/surfaces', wrap((req) => listSurfaces(req.params.eid)))
@@ -80,18 +96,42 @@ app.post('/api/engagements/:eid/surfaces', wrap((req) => createSurface(req.param
 app.get('/api/engagements/:eid/findings', wrap((req) => listFindings(req.params.eid)))
 app.post('/api/engagements/:eid/findings', wrap((req) => createFinding(req.params.eid, req.body || {})))
 
+/** 発見事項 1 件を、報告書の詳細ブロックと同じ形の Markdown で返します（「Markdown でコピー」用）。 */
+app.get('/api/engagements/:eid/findings/:id/markdown', (req, res) => {
+  try {
+    const f = listFindings(req.params.eid).find((x) => x.id === req.params.id)
+    if (!f) return res.status(404).json({ error: `発見事項が見つかりません: ${req.params.id}` })
+    res.type('text/markdown; charset=utf-8')
+    res.send(findingBlock(f, readDoc(f.file), { depth: 2, forCopy: true }) + '\n')
+  } catch (err) {
+    res.status(400).json({ error: String(err.message || err) })
+  }
+})
+
 app.get('/api/engagements/:eid/toollogs', wrap((req) => listToolLogs(req.params.eid)))
 app.post('/api/engagements/:eid/toollogs', wrap((req) => createToolLog(req.params.eid, req.body || {})))
 
 app.post('/api/engagements/:eid/docs/ensure', wrap((req) => ensureDocs(req.params.eid)))
 
+app.get('/api/engagements/:eid/search', wrap((req) => {
+  if (!getEngagement(req.params.eid)) throw new Error('診断対象が見つかりません')
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50))
+  return searchDocs(req.params.eid, String(req.query.q || ''), limit)
+}))
+
 app.get('/api/engagements/:eid/progress', wrap((req) => progress(req.params.eid)))
+
+app.get('/api/engagements/:eid/report/check', wrap((req) => checkReport(req.params.eid, { includeDraft: req.query.draft === '1' })))
 
 app.post('/api/engagements/:eid/report/build', wrap((req) => buildReport(req.params.eid)))
 
 app.get('/api/doc', wrap((req) => readDoc(String(req.query.file || ''))))
 app.put('/api/doc', wrap((req) => writeDoc(String(req.body?.file || ''), req.body || {})))
-app.post('/api/doc/checklist', wrap((req) => toggleChecklist(String(req.body?.file || ''), Number(req.body?.line), !!req.body?.checked)))
+app.post('/api/doc/checklist', wrap((req) => {
+  const text = req.body?.text
+  if (text !== undefined && typeof text !== 'string') throw new Error('text は文字列で指定してください')
+  return toggleChecklist(String(req.body?.file || ''), Number(req.body?.line), !!req.body?.checked, text)
+}))
 
 /* ---------------- ツールリファレンス ---------------- */
 
@@ -218,7 +258,9 @@ if (fs.existsSync(dist)) {
 export function startServer({ port, bindHost = '127.0.0.1' } = {}) {
   const chosen = port === undefined ? readConfig().port : port
   return new Promise((resolve, reject) => {
-    const server = app.listen(chosen, bindHost, () => {
+    // Host ヘッダのない要求も Node に 400 で落とさせず、localOnly で 403 を返します。
+    const server = http.createServer({ requireHostHeader: false }, app)
+    server.listen(chosen, bindHost, () => {
       const actual = server.address().port
       resolve({ server, port: actual, url: `http://${bindHost}:${actual}`, dataRoot: dataRoot() })
     })

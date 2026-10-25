@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nmaprun scanner="nmap" args="nmap -sV -oX - app.example.com" start="1761350400" version="7.95">
+<host><status state="up" reason="syn-ack"/>
+<address addr="198.51.100.10" addrtype="ipv4"/>
+<hostnames><hostname name="app.example.com" type="user"/></hostnames>
+<ports>
+<port protocol="tcp" portid="22"><state state="open" reason="syn-ack"/><service name="ssh" product="OpenSSH" version="9.6"/></port>
+<port protocol="tcp" portid="443"><state state="open" reason="syn-ack"/><service name="https" product="nginx" version="1.25.3" extrainfo="TLS"/></port>
+<port protocol="tcp" portid="8080"><state state="closed" reason="reset"/><service name="http-proxy"/></port>
+</ports>
+</host>
+<host><status state="up" reason="syn-ack"/>
+<address addr="198.51.100.11" addrtype="ipv4"/>
+<ports><port protocol="tcp" portid="80"><state state="open" reason="syn-ack"/><service name="http" product="Apache httpd"/></port></ports>
+</host>
+</nmaprun>

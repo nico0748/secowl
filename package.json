@@ -5,18 +5,28 @@
   "type": "module",
   "description": "脆弱性調査支援アプリケーション — 偵察・列挙／脆弱性調査／トリアージ／報告書をローカルのMarkdownで管理する",
   "main": "electron/main.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "node scripts/dev.js",
     "build": "vite build",
     "start": "npm run build && node server/index.js",
     "server": "node server/index.js",
-    "app": "npm run build && electron .",
-    "app:nobuild": "electron .",
+    "app": "npm run build && node scripts/patch-electron-app.mjs && electron .",
+    "app:nobuild": "node scripts/patch-electron-app.mjs && electron .",
     "dist:mac": "npm run build && electron-builder --mac",
     "typecheck": "tsc --noEmit",
     "seed": "node scripts/seed-mock.js",
     "mcp": "node mcp/server.js",
-    "icons": "node scripts/fetch-tool-icons.js"
+    "icons": "node scripts/fetch-tool-icons.js",
+    "check:colors": "node scripts/check-colors.mjs",
+    "test": "node --import ./test/helpers/env.mjs --test \"test/**/*.test.mjs\"",
+    "test:unit": "node --import ./test/helpers/env.mjs --test \"test/unit/**/*.test.mjs\"",
+    "test:api": "node --import ./test/helpers/env.mjs --test \"test/api/**/*.test.mjs\"",
+    "tokens": "python3 scripts/gen-tokens/gen_tokens.py",
+    "postinstall": "node scripts/patch-electron-app.mjs",
+    "app:icons": "python3 scripts/gen-icons/gen_icons.py"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
@@ -67,7 +77,7 @@
         }
       ],
       "identity": null,
-      "icon": "build/icon.png"
+      "icon": "build/icon.icns"
     },
     "dmg": {
       "title": "SecOwl"

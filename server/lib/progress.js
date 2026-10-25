@@ -1,3 +1,4 @@
+import { approvalComplete } from '../../shared/finding-table.js'
 /**
  * 診断対象ごとの進み具合を、フェーズ単位で判定します。
  *
@@ -31,15 +32,19 @@ export function progress(eid) {
   const cl = checklistRate(checklist)
   const triaged = findings.filter((f) => f.status && f.status !== 'draft')
   const scored = findings.filter((f) => f.cvss_vector && f.cvss_score !== '' && f.cvss_score !== null)
-  const agreed = scope?.data?.agreed === true
+  // 印だけでなく、承認日と承認者がそろって初めて「取得済み」とします。
+  const agreed = approvalComplete(scope?.data)
+  const agreedPartly = scope?.data?.agreed === true && !agreed
 
   const state = (done, started) => (done ? 'done' : started ? 'doing' : 'todo')
 
   const phases = {
     preparation: {
       state: state(agreed, !!scope),
-      metrics: [{ label: '承認', value: agreed ? '取得済み' : '未取得' }],
-      next: agreed ? '' : 'スコープと RoE に承認を記録してください',
+      metrics: [{ label: '承認', value: agreed ? '取得済み' : agreedPartly ? '記録が不足' : '未取得' }],
+      next: agreed ? '' : agreedPartly
+        ? '事前準備で、承認日と承認者を記録してください'
+        : 'スコープと RoE に承認を記録してください',
     },
     recon: {
       state: state(inScope.length > 0 && investigated.length === inScope.length, inScope.length > 0 || logs.length > 0),
@@ -69,7 +74,7 @@ export function progress(eid) {
       state: state(findings.length > 0 && triaged.length === findings.length && scored.length === findings.length, findings.length > 0),
       metrics: [
         { label: '発見事項', value: `${findings.length} 件` },
-        { label: 'draft 以外', value: `${triaged.length} / ${findings.length}` },
+        { label: '下書き以外', value: `${triaged.length} / ${findings.length}` },
         { label: 'CVSS 記入済', value: `${scored.length} / ${findings.length}` },
       ],
       next: findings.length === 0
@@ -77,7 +82,7 @@ export function progress(eid) {
         : scored.length < findings.length
           ? `CVSS が未記入の発見事項が ${findings.length - scored.length} 件あります`
           : triaged.length < findings.length
-            ? `draft のままの発見事項が ${findings.length - triaged.length} 件あります`
+            ? `下書きのままの発見事項が ${findings.length - triaged.length} 件あります`
             : '',
     },
     report: {
@@ -97,7 +102,7 @@ export function progress(eid) {
     next: !built
       ? '「発見事項を反映」を押して、件数と一覧を最新にしてください'
       : triaged.length < findings.length
-        ? `draft のままの発見事項が ${findings.length - triaged.length} 件あります。確定してから反映し直してください`
+        ? `下書きのままの発見事項が ${findings.length - triaged.length} 件あります。『確定』にしてから反映し直してください`
         : '',
   }
 

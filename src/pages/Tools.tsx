@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
@@ -59,7 +59,7 @@ export function ToolsPage() {
         <span className="tag">{data.usecases.length} ユースケース</span>
       </div>
 
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
         診断で使うツールの要点と、使う順番をまとめた手引きです。内容は <code>knowledge/</code> の Markdown なので、
         手元で書き足せます。
       </p>
@@ -100,9 +100,7 @@ export function ToolsPage() {
                 style={tab === 'usecases' ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}
                 onClick={() => setParam('item', it.slug)}
               >
-                {tab === 'tools' && it.icon && (
-                  <img src={it.icon} alt="" loading="lazy" />
-                )}
+                {tab === 'tools' && <ToolIcon src={it.icon} name={it.name} />}
                 <span className="kb-name">{it.name}</span>
                 {tab === 'tools'
                   ? <span className="kb-sub">{it.category}</span>
@@ -115,9 +113,7 @@ export function ToolsPage() {
             {selected && (
               <>
                 <div className="card-head" style={{ alignItems: 'center' }}>
-                  {tab === 'tools' && selected.icon && (
-                    <img className="kb-head-icon" src={selected.icon} alt="" />
-                  )}
+                  {tab === 'tools' && <ToolIcon src={selected.icon} name={selected.name} large />}
                   <h2 style={{ fontSize: 20 }}>{selected.name}</h2>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--sp-2)' }}>
                     {selected.url && (
@@ -139,7 +135,7 @@ export function ToolsPage() {
                   {selected.phase.map((p) => <span key={p} className="tag">{PHASE_LABEL[p] || p}</span>)}
                   {selected.tags.map((t) => <span key={t} className="tag">{t}</span>)}
                   {selected.authorization && (
-                    <span className="sev-pill" style={{ background: 'var(--wood-700)' }}>承認 {selected.authorization}</span>
+                    <span className="tag status-pill warn">承認 {selected.authorization}</span>
                   )}
                 </div>
 
@@ -244,4 +240,16 @@ function LogDialog({ tool, onClose, onCreate }: {
       </div>
     </Dialog>
   )
+}
+
+/**
+ * ツールのアイコン。アイコンを取得していないとき（または読めないとき）は、名前の頭文字を同じ大きさの枠で出します。
+ */
+function ToolIcon({ src, name, large = false }: { src?: string | null; name: string; large?: boolean }) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => { setBroken(false) }, [src])
+  const cls = large ? 'kb-head-icon' : 'kb-icon'
+  if (src && !broken) return <img className={cls} src={src} alt="" loading={large ? undefined : 'lazy'} onError={() => setBroken(true)} />
+  const initial = [...name.trim()][0]?.toUpperCase() ?? '?'
+  return <span className={`${cls} kb-icon-fallback`} aria-hidden="true">{initial}</span>
 }

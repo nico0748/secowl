@@ -2,15 +2,20 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
-import { Dialog } from '../components/Dialog'
 import { IconPlus } from '../components/Icons'
 import { McpSection } from '../components/McpSection'
+import { ThemeSection } from '../components/ThemeSection'
+import { EngagementDialog } from '../components/EngagementDialog'
+import { useSaveEngagement } from '../components/EngagementInfo'
+import type { Engagement } from '../types'
 
 export function SettingsPage() {
   const { meta, engagements, current, setCurrentId, reloadEngagements, reloadMeta, notify, bump } = useStore()
   const [root, setRoot] = useState(meta?.dataRoot ?? '')
   const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Engagement | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const saveEngagement = useSaveEngagement()
 
   const saveRoot = async () => {
     try {
@@ -31,7 +36,7 @@ export function SettingsPage() {
 
       <section className="card" style={{ marginBottom: 'var(--sp-4)' }}>
         <div className="card-head"><span className="card-title">調査データの保存先</span></div>
-        <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+        <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
           診断対象ごとのフォルダと Markdown はこのパスの下に作られます。Obsidian で開くときは、このフォルダを vault として指定してください。
         </p>
         <div className="field">
@@ -103,11 +108,15 @@ export function SettingsPage() {
                   <td>{e.name}{current?.id === e.id && <span className="tag" style={{ marginLeft: 8 }}>選択中</span>}</td>
                   <td>{e.client}</td>
                   <td>{e.target_system}</td>
-                  <td>{e.period_from} 〜 {e.period_to}</td>
-                  <td>{e.created}</td>
+                  <td><span className="nowrap">{e.period_from}</span> 〜 <span className="nowrap">{e.period_to}</span></td>
+                  <td className="nowrap">{e.created}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
-                    <Link className="btn quiet" to="/playbook" style={{ marginRight: 'var(--sp-2)' }}>進め方</Link>
-                    <button className="btn quiet" onClick={() => setCurrentId(e.id)}>切り替える</button>
+                    <div className="row-actions">
+                      <Link className="btn quiet small" to="/playbook">進め方</Link>
+                      <Link className="btn quiet small" to="/scope" onClick={() => setCurrentId(e.id)}>事前準備</Link>
+                      <button className="btn quiet small" onClick={() => setEditing(e)}>編集</button>
+                      <button className="btn quiet small" onClick={() => setCurrentId(e.id)}>切り替える</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -120,10 +129,12 @@ export function SettingsPage() {
 
       <McpSection />
 
+      <ThemeSection />
+
       {open && (
-        <NewEngagementDialog
+        <EngagementDialog
           onClose={() => setOpen(false)}
-          onCreate={async (input) => {
+          onSubmit={async (input) => {
             const created = await api.createEngagement(input)
             await reloadEngagements()
             setCurrentId(created.id)
@@ -132,65 +143,20 @@ export function SettingsPage() {
           }}
         />
       )}
+
+      {editing && (
+        <EngagementDialog
+          initial={editing}
+          onClose={() => setEditing(null)}
+          onSubmit={async (input) => {
+            await saveEngagement(editing.id, input)
+            setEditing(null)
+          }}
+        />
+      )}
     </>
   )
 }
-
-function NewEngagementDialog({ onClose, onCreate }: {
-  onClose: () => void
-  onCreate: (input: Record<string, string>) => Promise<void>
-}) {
-  const [f, setF] = useState({ name: '', client: '', target_system: '', period_from: '', period_to: '' })
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
-  const set = (k: string, v: string) => setF({ ...f, [k]: v })
-
-  const submit = async () => {
-    if (!f.name) { setErr('診断対象名を入力してください'); return }
-    setBusy(true)
-    try {
-      await onCreate(f)
-    } catch (e) {
-      setErr(String((e as Error).message))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <Dialog title="診断対象を作る" onClose={onClose}>
-      {err && <div className="banner error">{err}</div>}
-      <div className="field">
-        <label htmlFor="e-name">診断対象名</label>
-        <input id="e-name" type="text" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="2026-10-example-corp" />
-        <span className="hint">この名前でフォルダを作ります。</span>
-      </div>
-      <div className="grid-2">
-        <div className="field">
-          <label htmlFor="e-client">顧客</label>
-          <input id="e-client" type="text" value={f.client} onChange={(e) => set('client', e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="e-target">対象システム</label>
-          <input id="e-target" type="text" value={f.target_system} onChange={(e) => set('target_system', e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="e-from">開始日</label>
-          <input id="e-from" type="date" value={f.period_from} onChange={(e) => set('period_from', e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="e-to">終了日</label>
-          <input id="e-to" type="date" value={f.period_to} onChange={(e) => set('period_to', e.target.value)} />
-        </div>
-      </div>
-      <div className="dialog-actions">
-        <button className="btn quiet" onClick={onClose}>キャンセル</button>
-        <button className="btn" onClick={submit} disabled={busy}>{busy ? '作成しています…' : '診断対象を作る'}</button>
-      </div>
-    </Dialog>
-  )
-}
-
 
 function GitSection() {
   const { notify, revision } = useStore()
@@ -229,7 +195,7 @@ function GitSection() {
 
       {!status.isRepo ? (
         <>
-          <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+          <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
             保存先はまだ Git リポジトリではありません。初期化すると、この場で履歴を残せます。
           </p>
           <label className="check-item">
@@ -247,13 +213,13 @@ function GitSection() {
         </>
       ) : (
         <>
-          <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+          <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
             未コミットの変更: {status.changes?.length ?? 0} 件
           </p>
           {(status.changes?.length ?? 0) > 0 && (
             <ul style={{ fontSize: 14, paddingLeft: '1.2em', margin: '0 0 var(--sp-3)', maxHeight: 180, overflowY: 'auto' }}>
               {status.changes!.slice(0, 50).map((c) => (
-                <li key={c.path}><code style={{ color: 'var(--text-muted)' }}>{c.code}</code> {c.path}</li>
+                <li key={c.path}><code style={{ color: 'var(--app-text-muted)' }}>{c.code}</code> {c.path}</li>
               ))}
               {status.changes!.length > 50 && <li>ほか {status.changes!.length - 50} 件</li>}
             </ul>

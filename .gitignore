@@ -14,3 +14,10 @@ secowl.config.json
 # OS のメタデータとバックアップ用アーカイブ
 .DS_Store
 *.tgz
+
+# Python のバイトコード（scripts/gen-tokens・gen-icons の実行で生成されます）
+__pycache__/
+*.pyc
+
+# 更新用の一時フォルダ
+.secowl-update/

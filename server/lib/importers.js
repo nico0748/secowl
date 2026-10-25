@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser'
+import { fence } from '../../shared/redact.js'
 
 /**
  * 各ツールの出力を、サーフェス候補と発見事項候補の配列へ変換します。
@@ -126,6 +127,23 @@ function parseHttpx(text) {
 
 const NUCLEI_SEVERITY = { critical: 'critical', high: 'high', medium: 'medium', low: 'low', info: 'info', unknown: 'info' }
 
+/**
+ * 個票の「脆弱性があると判断した理由」に入れる文章。
+ * curl-command には XSS のテンプレートなら "><script>… がそのまま入るため、必ずコードブロックに入れます。
+ */
+function nucleiEvidence(id, info, r) {
+  const head = [
+    id && `template: ${id}`,
+    info.description && `説明: ${String(info.description).replace(/\s*[\r\n]+\s*/g, ' ').trim()}`,
+  ].filter(Boolean).join('\n')
+  const refs = [].concat(info.reference || []).filter(Boolean)
+  return [
+    head,
+    r['curl-command'] ? fence(String(r['curl-command']), 'bash') : '',
+    refs.length ? `参照: ${refs.join(' / ')}` : '',
+  ].filter(Boolean).join('\n\n')
+}
+
 function parseNuclei(text) {
   const surfaces = []
   const findings = []
@@ -147,12 +165,7 @@ function parseNuclei(text) {
       target,
       tools: ['nuclei'],
       surfaceValues: target ? [target] : [],
-      evidenceText: [
-        id && `template: ${id}`,
-        info.description && `説明: ${info.description}`,
-        r['curl-command'] && `再現: ${r['curl-command']}`,
-        [].concat(info.reference || []).length ? `参照: ${[].concat(info.reference).join(' / ')}` : '',
-      ].filter(Boolean).join('\n'),
+      evidenceText: nucleiEvidence(id, info, r),
     })
   }
   return { surfaces, findings }

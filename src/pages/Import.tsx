@@ -67,7 +67,7 @@ export function ImportPage() {
         <button className="btn quiet" onClick={() => nav('/surfaces')}>偵察に戻る</button>
       </div>
 
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
         出力を貼り付けると、サーフェスと発見事項の Markdown を生成します。同じ値のサーフェスがある場合は、発見ツールと技術の欄に追記します。
       </p>
 
@@ -109,7 +109,7 @@ export function ImportPage() {
             <button className="btn quiet" onClick={() => run(true)} disabled={busy}>内容を確認</button>
             <button className="btn" onClick={() => run(false)} disabled={busy || !preview}>取り込む</button>
           </div>
-          {!preview && <p className="hint" style={{ textAlign: 'right', color: 'var(--text-muted)' }}>先に「内容を確認」を押してください。</p>}
+          {!preview && <p className="hint" style={{ textAlign: 'right', color: 'var(--app-text-muted)' }}>先に「内容を確認」を押してください。</p>}
         </div>
 
         <div className="card">
@@ -123,7 +123,7 @@ export function ImportPage() {
                 {preview.dryRun ? '（まだ書き込んでいません）' : '（書き込みました）'}
               </p>
               <h3 style={{ fontSize: 15, marginTop: 'var(--sp-3)' }}>サーフェス</h3>
-              <p style={{ fontSize: 14, color: 'var(--text-sub)', margin: '4px 0' }}>
+              <p style={{ fontSize: 14, color: 'var(--app-text-sub)', margin: '4px 0' }}>
                 新規 {preview.surfaces.created.length} 件 ／ 更新 {preview.surfaces.updated.length} 件 ／ 変更なし {preview.surfaces.unchanged} 件
               </p>
               <ul style={{ fontSize: 14, paddingLeft: '1.2em', margin: 0 }}>
@@ -131,7 +131,7 @@ export function ImportPage() {
                 {preview.surfaces.created.length > 40 && <li>ほか {preview.surfaces.created.length - 40} 件</li>}
               </ul>
               <h3 style={{ fontSize: 15, marginTop: 'var(--sp-3)' }}>発見事項</h3>
-              <p style={{ fontSize: 14, color: 'var(--text-sub)', margin: '4px 0' }}>
+              <p style={{ fontSize: 14, color: 'var(--app-text-sub)', margin: '4px 0' }}>
                 新規 {preview.findings.created.length} 件 ／ 重複で見送り {preview.findings.skipped.length} 件
               </p>
               <ul style={{ fontSize: 14, paddingLeft: '1.2em', margin: 0 }}>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { api } from '../api'
+import { api, StaleWriteError } from '../api'
 import { useAsync, useStore } from '../state'
 import { Dialog } from '../components/Dialog'
 import { IconPlus } from '../components/Icons'
@@ -71,7 +71,7 @@ export function SurveyPage() {
                 {logs.map((l) => (
                   <tr key={l.id}>
                     <td>{l.tool}</td>
-                    <td><Link to={`/survey/logs/${l.id}`}>{l.title}</Link><br /><code style={{ fontSize: 13, color: 'var(--text-muted)' }}>{l.command}</code></td>
+                    <td><Link to={`/survey/logs/${l.id}`}>{l.title}</Link><br /><code style={{ fontSize: 13, color: 'var(--app-text-muted)' }}>{l.command}</code></td>
                     <td>{l.phase_label}</td>
                     <td>{l.executed_at}</td>
                   </tr>
@@ -116,11 +116,19 @@ function ChecklistCard({ doc }: { doc: Doc }) {
   }, [items])
 
   const toggle = async (line: number, checked: boolean) => {
+    const text = items.find((c) => c.line === line)?.text ?? ''
     setItems((prev) => prev.map((c) => (c.line === line ? { ...c, checked } : c)))
     try {
-      const next = await api.toggleCheck(doc.file, line, checked)
+      const next = await api.toggleCheck(doc.file, line, checked, text)
       setItems(next.checklist)
-    } catch {
+    } catch (e) {
+      if (e instanceof StaleWriteError && e.current) {
+        // 行がずれて項目を特定できなかったときは、切り替えずに最新の内容を出します。
+        setItems(e.current.checklist)
+        notify('チェックリストがほかの場所で更新されていたため、切り替えていません。最新の内容を表示しました。')
+        return
+      }
+      setItems((prev) => prev.map((c) => (c.line === line ? { ...c, checked: !checked } : c)))
       notify('チェックリストを保存できませんでした')
     }
   }
@@ -131,7 +139,7 @@ function ChecklistCard({ doc }: { doc: Doc }) {
         <span className="card-title">診断チェックリスト</span>
         <span className="card-note">{items.filter((c) => c.checked).length} / {items.length}</span>
       </div>
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
         切り替えると Markdown のチェックボックスをその場で書き換えます。
       </p>
       {groups.map(([group, list]) => (

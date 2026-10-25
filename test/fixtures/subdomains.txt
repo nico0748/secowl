@@ -1,0 +1,5 @@
+app.example.com
+api.example.com
+Staging.Example.com
+
+app.example.com

@@ -45,7 +45,7 @@ export function Donut({ slices, size = 160, thickness = 26, centerLabel, centerV
 
   if (total <= 0) {
     return (
-      <div style={{ width: size, height: size, display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+      <div style={{ width: size, height: size, display: 'grid', placeItems: 'center', color: 'var(--app-text-muted)', fontSize: 14 }}>
         {emptyText}
       </div>
     )
@@ -62,11 +62,10 @@ export function Donut({ slices, size = 160, thickness = 26, centerLabel, centerV
               cy={c}
               r={r}
               fill="none"
-              stroke={a.color}
               strokeWidth={hover === a.key ? thickness + 4 : thickness}
               strokeDasharray={`${a.dash} ${circumference - a.dash}`}
               strokeDashoffset={-a.offset}
-              style={{ cursor: onSelect ? 'pointer' : 'default', transition: 'stroke-width 120ms' }}
+              style={{ stroke: a.color, cursor: onSelect ? 'pointer' : 'default', transition: 'stroke-width 120ms' }}
               onMouseEnter={() => setHover(a.key)}
               onMouseLeave={() => setHover(null)}
               onClick={() => onSelect?.(a.key)}
@@ -84,7 +83,7 @@ export function Donut({ slices, size = 160, thickness = 26, centerLabel, centerV
           <div style={{ fontSize: 24, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
             {hover ? slices.find((s) => s.key === hover)?.value : (centerValue ?? total)}
           </div>
-          <div style={{ fontSize: 14, color: 'var(--text-muted)', maxWidth: size - thickness * 2, margin: '0 auto' }}>
+          <div style={{ fontSize: 14, color: 'var(--app-text-muted)', maxWidth: size - thickness * 2, margin: '0 auto' }}>
             {hover ? slices.find((s) => s.key === hover)?.label : centerLabel}
           </div>
         </div>

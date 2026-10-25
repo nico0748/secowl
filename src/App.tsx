@@ -15,6 +15,8 @@ import { SettingsPage } from './pages/Settings'
 import { ToolsPage } from './pages/Tools'
 import { PlaybookPage } from './pages/Playbook'
 import { DocPage } from './pages/DocPage'
+import { ScopePage } from './pages/Scope'
+import { SearchButton } from './components/SearchDialog'
 
 const NAV = [
   { to: '/', label: 'ホーム', icon: IconHome, end: true },
@@ -31,6 +33,7 @@ const TITLES: Record<string, string> = {
   '/survey': '脆弱性調査',
   '/findings': 'トリアージ',
   '/report': '調査報告書',
+  '/scope': '事前準備',
   '/settings': '設定',
   '/tools': 'ツール',
   '/playbook': '進め方',
@@ -67,7 +70,7 @@ export function App() {
         <span className="header-title">{title}</span>
         <div className="header-right">
           <span className="eng-select">
-            <label htmlFor="eng" style={{ color: 'var(--text-muted)' }}>診断対象</label>
+            <label htmlFor="eng" style={{ color: 'var(--app-text-muted)' }}>診断対象</label>
             <select id="eng" value={current?.id ?? ''} onChange={(e) => setCurrentId(e.target.value)}>
               {engagements.length === 0 && <option value="">（診断対象なし）</option>}
               {engagements.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -76,7 +79,7 @@ export function App() {
           <a className="rail-item" style={{ margin: 0, padding: 6 }} href="https://owasp.org/www-project-web-security-testing-guide/" target="_blank" rel="noreferrer" aria-label="OWASP WSTG を開く">
             <IconHelp />
           </a>
-          <span className="avatar" aria-hidden="true">N</span>
+          <SearchButton />
         </div>
       </header>
 
@@ -94,6 +97,7 @@ export function App() {
           <Route path="/tools" element={<ToolsPage />} />
           <Route path="/playbook" element={<PlaybookPage />} />
           <Route path="/doc" element={<DocPage />} />
+          <Route path="/scope" element={<ScopePage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>

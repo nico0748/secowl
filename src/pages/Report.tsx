@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Markdown } from '../components/Markdown'
@@ -6,6 +7,8 @@ import { DocEditor } from '../components/DocEditor'
 import { Dialog } from '../components/Dialog'
 import { NoEngagement } from './shared'
 import { PhaseGuide } from '../components/PhaseGuide'
+import type { ExcludedFinding } from '../types'
+import { EngagementInfoCard } from '../components/EngagementInfo'
 
 export function ReportPage() {
   const { current, revision, bump, notify } = useStore()
@@ -17,8 +20,8 @@ export function ReportPage() {
     async () => {
       if (!current) return null
       const e = await api.engagement(current.id)
-      const [doc, findings] = await Promise.all([api.doc(e.docs!.report), api.findings(current.id)])
-      return { doc, findings }
+      const [doc, findings, check] = await Promise.all([api.doc(e.docs!.report), api.findings(current.id), api.reportCheck(current.id)])
+      return { doc, findings, check }
     },
     [current?.id, revision],
   )
@@ -28,12 +31,16 @@ export function ReportPage() {
   if (loading || !data) return <div className="empty">読み込んでいます…</div>
 
   const drafts = data.findings.filter((f) => f.status === 'draft').length
+  // 除外した下書きは、反映した直後だけでなく、開き直しても出します。
+  const excluded: ExcludedFinding[] = data.check.excluded
 
   const build = async () => {
     setBusy(true)
     try {
-      await api.buildReport(current.id)
-      notify('発見事項とサーフェスを報告書に反映しました')
+      const res = await api.buildReport(current.id)
+      notify(res.excluded.length
+        ? `${res.included} 件を反映しました。下書きの ${res.excluded.length} 件は含めていません`
+        : `${res.included} 件を反映しました`)
       reload()
       bump()
     } catch (e) {
@@ -67,22 +74,31 @@ export function ReportPage() {
 
       <PhaseGuide phase="report" />
 
+      {excluded.length > 0 && (
+        <div className="banner warn">
+          <p className="banner-text">次の発見事項は下書きのため、報告書に含めていません。裏取りが済んだら状態を『確定』にして、もう一度反映してください。</p>
+          <ul className="banner-list">
+            {excluded.map((f) => (
+              <li key={f.id}><Link to={`/findings/${f.id}`}>{f.id} {f.vuln_name}</Link></li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="banner">
         「発見事項を反映」を押すと、件数内訳・発見事項一覧・個別の脆弱性の章を現在のデータで書き換えます。手書きした章はそのまま残ります。
       </div>
 
+      <EngagementInfoCard engagement={current} title="表紙に載せる診断対象の情報" />
+
       {mode === 'preview' ? (
-        <div className="card"><Markdown source={data.doc.body} /></div>
+        <div className="card"><Markdown source={data.doc.body} eid={current.id} /></div>
       ) : (
         <DocEditor
           file={data.doc.file}
           fields={[
-            { key: 'client', label: '顧客' },
-            { key: 'target_system', label: '対象システム' },
             { key: 'report_no', label: '報告書番号' },
             { key: 'report_version', label: '版数' },
-            { key: 'period_from', label: '開始日', type: 'date' },
-            { key: 'period_to', label: '終了日', type: 'date' },
           ]}
           sectionHeadings={[
             '1.1 調査の目的と背景',
@@ -107,26 +123,53 @@ export function ReportPage() {
   )
 }
 
+const LEAK_LABEL: Record<string, string> = {
+  cookie: 'Cookie', authorization: 'Authorization', jwt: 'JWT', email: 'メールアドレス', secret: 'API キー・トークン・パスワード',
+}
+
 function ShareDialog({ eid, drafts, onClose, onMd }: { eid: string; drafts: number; onClose: () => void; onMd: () => void }) {
   const [includeDraft, setIncludeDraft] = useState(false)
   const [includeEvidence, setIncludeEvidence] = useState(true)
+  // 下書きを含めるかどうかで点検の範囲も変えます。
+  const { data: check, loading: checking } = useAsync(() => api.reportCheck(eid, includeDraft), [eid, includeDraft])
 
   return (
     <Dialog title="共有・書き出し" onClose={onClose}>
       <section style={{ marginBottom: 'var(--sp-5)' }}>
         <h3 style={{ fontSize: 15 }}>共有バンドル（HTML 1 ファイル）</h3>
-        <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 4 }}>
+        <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 4 }}>
           診断対象のスナップショットを自己完結の HTML にします。相手はブラウザで開くだけで読めます。書き込みはできません。
         </p>
         <label className="check-item">
           <input type="checkbox" checked={includeDraft} onChange={(e) => setIncludeDraft(e.target.checked)} />
-          <span>draft 状態の発見事項も含める{drafts > 0 ? `（現在 ${drafts} 件）` : ''}</span>
+          <span>下書きの発見事項も含める{drafts > 0 ? `（現在 ${drafts} 件）` : ''}</span>
         </label>
         <label className="check-item">
           <input type="checkbox" checked={includeEvidence} onChange={(e) => setIncludeEvidence(e.target.checked)} />
           <span>証跡画像を埋め込む（ファイルサイズが増えます）</span>
         </label>
-        <div className="banner warn" style={{ marginTop: 'var(--sp-2)' }}>
+        {checking && !check && <p className="hint-text">マスキング漏れを点検しています…</p>}
+        {check && check.leaks.length > 0 && (
+          <div className="banner warn share-leaks" role="alert">
+            <p className="banner-text">次の記録に、伏せていない Cookie・トークン・メールアドレスが残っている可能性があります。</p>
+            <ul className="banner-list">
+              {check.leaks.map((l) => (
+                <li key={l.id}>
+                  <Link to={l.id === 'report' ? '/report' : `/findings/${l.id}`} onClick={onClose}>
+                    {l.id === 'report' ? l.vuln_name : `${l.id} ${l.vuln_name}`}
+                  </Link>
+                  （{l.kinds.map((k) => LEAK_LABEL[k] ?? k).join('・')}）
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {check && check.leaks.length === 0 && (
+          <p className="share-check-ok" role="status">
+            マスキング漏れの点検: 該当なし（発見事項 {check.checked} 件{check.includeDraft ? '（下書きを含む）' : ''}と報告書の手書きの章を点検）
+          </p>
+        )}
+        <div className="banner warn share-note">
           共有バンドルは機密情報を含みます。渡す前に証跡のマスキングを確認してください。
         </div>
         <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap', marginTop: 'var(--sp-2)' }}>
@@ -141,7 +184,7 @@ function ShareDialog({ eid, drafts, onClose, onMd }: { eid: string; drafts: numb
 
       <section style={{ marginBottom: 'var(--sp-5)' }}>
         <h3 style={{ fontSize: 15 }}>報告書の納品形式</h3>
-        <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 4 }}>
+        <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 4 }}>
           印刷用レイアウトは表紙と目次を付けた状態で開きます。ブラウザの印刷設定で「ヘッダーとフッター」を有効にすると、ページ番号が入ります。
         </p>
         <div style={{ display: 'flex', gap: 'var(--sp-2)', flexWrap: 'wrap' }}>

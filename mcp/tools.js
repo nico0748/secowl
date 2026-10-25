@@ -9,7 +9,7 @@ import { z } from 'zod'
 
 import { readConfig, writeConfig, dataRoot } from '../server/lib/config.js'
 import {
-  listEngagements, createEngagement, getEngagement,
+  listEngagements, createEngagement, getEngagement, updateEngagement, engDir,
   listSurfaces, createSurface, listFindings, createFinding,
   listToolLogs, createToolLog, readDoc, writeDoc, toggleChecklist, resolveFile,
   docPaths, ensureDocs, importIntoEngagement, SURFACE_KINDS, PHASES,
@@ -26,41 +26,61 @@ import { parseVector, buildVector31, score31, V31_METRICS } from '../shared/cvss
 import { knowledge, findTool, findUsecase } from '../server/lib/knowledge.js'
 import { playbookIndex, findPhase } from '../server/lib/playbook.js'
 import { progress } from '../server/lib/progress.js'
+import { checkReport } from '../server/lib/reportable.js'
+import { searchDocs } from '../server/lib/search.js'
 
 const json = (value) => ({ content: [{ type: 'text', text: JSON.stringify(value, null, 2) }] })
 const text = (value) => ({ content: [{ type: 'text', text: String(value) }] })
 
 const ENGAGEMENT = z.string().describe('診断対象 ID。list_engagements が返す id を指定します')
 
+/**
+ * スコープ文書の「関門」にあたるキー。コマンド実行の可否（スコープ判定と書面の承認）を決めるため、
+ * MCP からは書き換えさせません（ツール出力に仕込まれた指示でエージェントが関門を開けないように）。
+ * 画面か Obsidian で、人が編集します。
+ */
+const GATE_KEYS = new Set(['agreed', 'agreed_at', 'agreed_by'])
+const isGateKey = (k) => GATE_KEYS.has(k) || /^scope_/i.test(k)
+
+function isScopeDoc(file, currentData) {
+  if (currentData?.type === 'vs-scope') return true
+  const parts = String(file).split(/[\\/]+/)
+  return parts.at(-1) === 'スコープとRoE.md' && ['00-診断対象', '00-案件'].includes(parts.at(-2))
+}
+
+/** update_doc の前に、スコープ文書の関門のキーを書き換えようとしていないかを確かめます。 */
+export function assertNoGateWrite(file, data) {
+  if (!data || typeof data !== 'object') return
+  let current = null
+  try { current = readDoc(file).data } catch { current = null }
+  const scopeDoc = isScopeDoc(file, current) || data.type === 'vs-scope'
+  if (!scopeDoc) return
+  const blocked = Object.keys(data).filter(isGateKey)
+  if (current?.type === 'vs-scope' && Object.prototype.hasOwnProperty.call(data, 'type') && data.type !== 'vs-scope') blocked.push('type')
+  if (blocked.length) {
+    throw new Error(`スコープ文書の ${blocked.join(', ')} は MCP からは変更できません。スコープと承認は、SecOwl の「事前準備」画面か Obsidian で人が編集してください。`)
+  }
+}
+
+/** export_report の書き出し先を確かめます。保存先の Markdown（スコープ文書など）を上書きさせません。 */
+function checkExportPath(file, ext) {
+  const abs = path.resolve(file)
+  if (path.extname(abs).toLowerCase() !== `.${ext}`) throw new Error(`書き出し先の拡張子は .${ext} にしてください`)
+  const parts = abs.split(path.sep)
+  if (parts.includes('00-診断対象') || parts.includes('00-案件') || path.basename(abs) === 'スコープとRoE.md') {
+    throw new Error('スコープ文書のフォルダには書き出せません')
+  }
+  const root = dataRoot()
+  if (abs.startsWith(root + path.sep) && !parts.includes('exports')) {
+    throw new Error('保存先の中に書き出すときは、診断対象の 40-報告/exports/ を指定してください')
+  }
+  return abs
+}
+
 function requireEngagement(eid) {
   const e = getEngagement(eid)
   if (!e) throw new Error(`診断対象が見つかりません: ${eid}。list_engagements で確認してください。`)
   return e
-}
-
-/** 診断対象フォルダ配下の .md を順に読み、語句を含む行を返します。 */
-function searchDocs(eid, query, limit = 60) {
-  const root = path.join(dataRoot(), eid)
-  const needle = query.toLowerCase()
-  const hits = []
-  const walk = (dir) => {
-    if (hits.length >= limit) return
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (hits.length >= limit) return
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) { walk(full); continue }
-      if (!entry.name.endsWith('.md')) continue
-      const lines = fs.readFileSync(full, 'utf8').split('\n')
-      lines.forEach((line, i) => {
-        if (hits.length >= limit) return
-        if (line.toLowerCase().includes(needle)) {
-          hits.push({ file: path.relative(dataRoot(), full), line: i + 1, text: line.trim().slice(0, 300) })
-        }
-      })
-    }
-  }
-  if (fs.existsSync(root)) walk(root)
-  return hits
 }
 
 const READ_TOOLS = [
@@ -201,7 +221,7 @@ const READ_TOOLS = [
     name: 'search',
     config: {
       title: '診断対象内を検索',
-      description: '診断対象フォルダの Markdown を全文検索し、一致した行をファイルと行番号つきで返します。',
+      description: '診断対象フォルダの Markdown を全文検索し、一致した行をファイルと行番号つきで返します。id と title の一致を先に、本文の一致を後に並べます。各行には kind（surface / log / finding / doc）・id・title も付きます。',
       inputSchema: {
         engagement: ENGAGEMENT,
         query: z.string().min(1).describe('検索語。大文字小文字は区別しません'),
@@ -226,6 +246,22 @@ const READ_TOOLS = [
       requireEngagement(engagement)
       const doc = readDoc(docPaths(engagement).report)
       return text(doc.raw)
+    },
+  },
+  {
+    name: 'check_report',
+    config: {
+      title: '共有前の点検',
+      description: '報告書に載せる発見事項（既定では下書きを除く）の本文と、報告書の手書きの章を点検し、伏せていない可能性がある Cookie・Authorization・JWT・メールアドレスを含む個票を返します。included は報告書に載せる件数、excluded は除外した下書き、leaks は該当した個票と種類です。ファイルは変更しません。',
+      inputSchema: {
+        engagement: ENGAGEMENT,
+        include_draft: z.boolean().optional().describe('true なら下書きも点検します（下書きを含めて共有バンドルを書き出すとき）'),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    handler: ({ engagement, include_draft }) => {
+      requireEngagement(engagement)
+      return json(checkReport(engagement, { includeDraft: !!include_draft }))
     },
   },
   {
@@ -424,6 +460,22 @@ const WRITE_TOOLS = [
     handler: (input) => json(createEngagement(input)),
   },
   {
+    name: 'update_engagement',
+    config: {
+      title: '診断対象の情報を更新',
+      description: '診断対象の名前・顧客・対象システム・期間を engagement.json に保存し、スコープ文書と報告書の frontmatter にある写し（client / target_system / period_from / period_to）を同期します。渡したキーだけを変えます。id とフォルダ名は変わりません。返り値の synced は同期した文書です。',
+      inputSchema: {
+        engagement: ENGAGEMENT,
+        name: z.string().min(1).optional(),
+        client: z.string().optional(),
+        target_system: z.string().optional(),
+        period_from: z.string().optional().describe('YYYY-MM-DD'),
+        period_to: z.string().optional().describe('YYYY-MM-DD'),
+      },
+    },
+    handler: ({ engagement, ...patch }) => { requireEngagement(engagement); return json(updateEngagement(engagement, patch)) },
+  },
+  {
     name: 'create_surface',
     config: {
       title: 'サーフェスを追加',
@@ -474,7 +526,7 @@ const WRITE_TOOLS = [
         target: z.string().optional(),
         cvss_score: z.number().min(0).max(10).optional(),
         cvss_vector: z.string().optional(),
-        severity: z.enum(['critical', 'high', 'medium', 'low', 'info']).optional().describe('cvss_score より優先されます'),
+        severity: z.enum(['critical', 'high', 'medium', 'low', 'info']).optional().describe('cvss_score がないあいだは仮の深刻度として使います。cvss_score から導いた値と異なる場合は手動の深刻度になります'),
         surfaces: z.array(z.string()).optional(),
         tools: z.array(z.string()).optional(),
         status: z.enum(['draft', 'confirmed', 'reported', 'fixed', 'reopened']).optional(),
@@ -486,9 +538,10 @@ const WRITE_TOOLS = [
     name: 'update_doc',
     config: {
       title: 'Markdown を更新',
-      description: 'frontmatter のキーと、指定した見出しの中身だけを書き換えます。渡さなかったキーと見出しはそのまま残ります。発見事項・サーフェス・ツールログ・報告書のどれにも使えます。',
+      description: 'frontmatter のキーと、指定した見出しの中身だけを書き換えます。渡さなかったキーと見出しはそのまま残ります。発見事項・サーフェス・ツールログ・報告書のどれにも使えます。発見事項の `severity` に基本値と異なる値を渡すと手動の深刻度になります。空文字を渡すと CVSS 基本値から決める方式に戻ります。read_doc が返す version を base_version に渡すと安全です: 読んだあとで人や画面が同じファイルを更新していたら書き込まずにエラーを返すので、read_doc で読み直してから反映してください。スコープ文書（type: vs-scope）の scope_* と承認（agreed / agreed_at / agreed_by）は変更できません。',
       inputSchema: {
         file: z.string().describe('保存先からの相対パス'),
+        base_version: z.string().optional().describe('read_doc が返した version。渡すと、読んだあとの更新を上書きしません'),
         data: z.record(z.string(), z.any()).optional().describe('frontmatter に差し込む値'),
         sections: z.array(z.object({
           heading: z.string().describe('## の見出し文字列'),
@@ -496,32 +549,55 @@ const WRITE_TOOLS = [
         })).optional(),
       },
     },
-    handler: ({ file, data, sections }) => json(writeDoc(file, { data, sections })),
+    handler: ({ file, data, sections, base_version }) => {
+      assertNoGateWrite(file, data)
+      try {
+        return json(writeDoc(file, { data, sections, ...(base_version ? { baseVersion: base_version } : {}) }))
+      } catch (err) {
+        if (err?.code !== 'STALE_WRITE') throw err
+        const where = (err.conflicts || []).map((c) => c.heading || c.field).filter(Boolean)
+        throw new Error([
+          'read_doc のあとで、このファイルが更新されています。書き込んでいません。',
+          `最新の version: ${err.current?.version ?? '不明'}`,
+          where.length ? `衝突した見出し・欄: ${where.join(', ')}` : '',
+          'read_doc で読み直し、最新の内容に変更を反映してから、新しい version を base_version に渡してください。',
+        ].filter(Boolean).join('\n'))
+      }
+    },
   },
   {
     name: 'set_checklist_item',
     config: {
       title: 'チェックリストを切り替え',
-      description: 'チェックリストの項目を検証済み・未検証に切り替えます。項目は本文の文言（text）か行番号（line）で指定します。',
+      description: 'チェックリストの項目を検証済み・未検証に切り替えます。項目は本文の文言（text）で指定します。line を渡すときも text を一緒に渡してください。行がずれていても文言で項目を確かめ、別の項目を切り替えないようにします。',
       inputSchema: {
         engagement: ENGAGEMENT,
-        text: z.string().optional().describe('項目の文言。部分一致で探します'),
-        line: z.number().int().optional().describe('get_checklist が返す line'),
+        text: z.string().optional().describe('項目の文言。line がなければ部分一致で探します（複数に一致したらエラー）。line があれば、その行の文言と完全一致するかを確かめます'),
+        line: z.number().int().optional().describe('get_checklist が返す line。text と一緒に渡します'),
         checked: z.boolean(),
       },
     },
     handler: ({ engagement, text: needle, line, checked }) => {
       requireEngagement(engagement)
       const file = docPaths(engagement).checklist
+      if (!needle) throw new Error('text（項目の文言）を指定してください。line だけでは、行がずれたときに別の項目を切り替えてしまいます')
       let target = line
+      let expect = needle
       if (target === undefined) {
-        if (!needle) throw new Error('text か line のどちらかを指定してください')
         const doc = readDoc(file)
-        const hit = doc.checklist.find((c) => c.text.includes(needle))
-        if (!hit) throw new Error(`該当する項目がありません: ${needle}`)
-        target = hit.line
+        const exact = doc.checklist.filter((c) => c.text === needle.trim())
+        const hits = exact.length ? exact : doc.checklist.filter((c) => c.text.includes(needle))
+        if (!hits.length) throw new Error(`該当する項目がありません: ${needle}`)
+        if (hits.length > 1) throw new Error(`複数の項目に一致します（${hits.length} 件）。文言をもっと詳しく指定してください: ${hits.slice(0, 5).map((h) => h.text).join(' / ')}`)
+        target = hits[0].line
+        expect = hits[0].text
       }
-      return json(toggleChecklist(file, target, checked))
+      try {
+        return json(toggleChecklist(file, target, checked, expect))
+      } catch (err) {
+        if (err?.code !== 'STALE_WRITE') throw err
+        throw new Error(`${err.message}。get_checklist で読み直してください。`)
+      }
     },
   },
   {
@@ -577,13 +653,13 @@ const WRITE_TOOLS = [
     name: 'build_report',
     config: {
       title: '報告書に発見事項を反映',
-      description: '件数内訳・診断対象別評価・発見事項一覧・個別の脆弱性の章を、現在のデータで書き換えます。手書きした章はそのまま残ります。',
+      description: '件数内訳・診断対象別評価・発見事項一覧・個別の脆弱性の章を、現在のデータで書き換えます。手書きした章はそのまま残ります。下書き（draft）の発見事項は報告書に含めません。返り値の included は含めた件数、excluded は除外した下書きです。',
       inputSchema: { engagement: ENGAGEMENT },
     },
     handler: ({ engagement }) => {
       requireEngagement(engagement)
       const doc = buildReport(engagement)
-      return json({ file: doc.file, updated: doc.data.updated, overall_severity: doc.data.overall_severity })
+      return json({ file: doc.file, updated: doc.data.updated, overall_severity: doc.data.overall_severity, included: doc.included, excluded: doc.excluded })
     },
   },
   {
@@ -601,9 +677,9 @@ const WRITE_TOOLS = [
     },
     handler: async ({ engagement, format, include_draft, include_evidence, out_path }) => {
       requireEngagement(engagement)
-      const dir = path.join(dataRoot(), engagement, '40-報告', 'exports')
+      const dir = path.join(engDir(engagement), '40-報告', 'exports')
       const ext = { docx: 'docx', share_html: 'html', print_html: 'html', markdown: 'md' }[format]
-      const file = out_path || path.join(dir, `${engagement}-${format}.${ext}`)
+      const file = out_path ? checkExportPath(out_path, ext) : path.join(dir, `${engagement}-${format}.${ext}`)
       fs.mkdirSync(path.dirname(file), { recursive: true })
 
       if (format === 'docx') {
