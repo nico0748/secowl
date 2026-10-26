@@ -1,4 +1,4 @@
-// 色の直書きが残っていないかを調べます。画面の色は src/styles/tokens.css の --app-* / --md-sys-color-* だけを使います。
+// 色の直書きが残っていないかを調べます。画面の色は src/styles/tokens.css の --app-* だけを使います。
 // 例外: tokens.css（値の定義）、書き出し（server/lib/export-colors.js・exporters.js・docx.js。常にライト）、
 //       ウィンドウの地の色（electron/main.js・index.html。tokens.css の --app-bg と同じ値）、
 //       CVSS 計算機とホームのテクノロジーの以前の版の色（src/styles/cvss-legacy.css・dashboard-legacy.css）。
@@ -14,7 +14,8 @@ const ALLOW = new Set([
   'server/lib/export-colors.js', 'server/lib/exporters.js', 'server/lib/docx.js',
   'electron/main.js', 'index.html',
 ])
-const LEGACY = /var\(--(bg|surface|surface-sub|border|border-strong|text|text-sub|text-muted|primary|primary-hover|primary-bg|focus-ring|shadow|sev-(critical|high|medium|low|info)|cat-[0-9a-z]+|(sumi|sea|wood|sun|forest)-\d+)\)/
+// 旧名: 2025 年までの名前（接頭辞なし・デジタル庁の旧カラー名）と、Material You 版の中間層・使わなくなった --app-* の名前
+const LEGACY = /var\(--(bg|surface|surface-sub|border|border-strong|text|text-sub|text-muted|primary|primary-hover|primary-bg|focus-ring|shadow|sev-(critical|high|medium|low|info)|cat-[0-9a-z]+|(sumi|sea|wood|sun|forest)-\d+|md-sys-color-[a-z-]+|md-state-[a-z-]+|app-cat-[0-9a-z]+|app-(on-)?sev-[a-z]+-container)\)/
 const LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|(?<![-\w])(white|black)(?![-\w])/
 const files = []
 const walk = (dir) => {
