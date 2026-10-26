@@ -21,4 +21,6 @@ contextBridge.exposeInMainWorld('secowlDesktop', {
   execLaunch: (req) => ipcRenderer.invoke('secowl:exec-launch', { eid: String(req && req.eid || ''), planId: String(req && req.planId || '') }),
   // 置き場所の権限を直す依頼。直す場所はサーバ側が点検から決めるので、画面からは planId しか渡せません。
   setupFix: (req) => ipcRenderer.invoke('secowl:setup-fix', { planId: String(req && req.planId || '') }),
+  // 導入を始める依頼。入れるものはサーバ側が計画から決めるので、画面からは planId しか渡せません。
+  setupInstall: (req) => ipcRenderer.invoke('secowl:setup-install', { planId: String(req && req.planId || '') }),
 })

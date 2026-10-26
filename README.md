@@ -456,8 +456,18 @@ CVSS 計算機とホームのテクノロジー別の色は、以前の版の配
 手順は 3 つです。
 
 1. **Homebrew と Go を用意する**（どちらか一方でも進められます）。Homebrew は [brew.sh](https://brew.sh) の手順で入れます。Go は `brew install go`、または [go.dev/dl](https://go.dev/dl/) から入れ、`~/go/bin` を `PATH` に足します（`echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zprofile`）
-2. **ツールを入れる**。`brew install nmap httpx nuclei ffuf gobuster subfinder amass dnsx naabu katana gau`。Homebrew を使わない場合は、画面の「Go」の行（`go install …`）でも入ります。`whatweb` は Homebrew の formula が無いため、配布元の手順で入れてください
+2. **ツールを入れる**。画面の「Homebrew でまとめて入れる」か「Go でまとめて入れる」を押すと、SecOwl から入れられます。ターミナルで入れる場合は `brew install nmap httpx nuclei ffuf gobuster subfinder amass dnsx naabu katana gau`。`whatweb` は Homebrew の formula が無いため、配布元の手順で入れてください
 3. **権限を直す**。Intel 版の Homebrew（`/usr/local`）などは、置き場所がグループに書き込みを許しているため、SecOwl は「実行不可」として起動しません。「権限を直す」を押すと、変える場所の一覧をネイティブの確認で出してから `chmod go-w` を当てます
+
+導入の実行にも、コマンドの実行と同じ拘束をかけています。
+
+- 動かすのは `brew` と `go` だけです。引数は `server/lib/tool-install.js` の固定表から組み立て、画面からは「どのツールを」「どちらで」しか渡せません（`knowledge/tools/*.md` を書き換えても、入れるものは変えられません）
+- `brew` と `go` 自身も、ほかのユーザーが書き換えられる場所にあるものは動かしません。その場合は、置き場所が「権限を直す」の対象に入ります
+- 始めるのはデスクトップ版の IPC からだけです。HTTP には計画（`POST /api/exec/setup/install-plan`）と状態（`GET /api/exec/setup/install`）しかありません
+- 実行の前に、動かす実行ファイルの絶対パスとコマンドをネイティブの確認で見せます（既定はキャンセル）。1 つが失敗しても残りは続け、どれが失敗したかを返します
+- 1 つあたり 20 分で打ち切ります。「中止する」を押すと、プロセスグループごと止めます
+- 導入のときの環境は、コマンドの実行より少し広く渡します。ネットワークと土台（git・curl など）が要るためで、`HTTP_PROXY` などのプロキシの設定と `GOPROXY` ほかもそのまま渡します。`go install` の置き場所は `~/go/bin`（`GOBIN`）に固定します
+- 記録は `<保存先>/.secowl/setup.jsonl` に、権限の修正と同じつながりで残ります（`setup.install.start` / `setup.install.end`）
 
 権限の修正には、コマンドの実行と同じ拘束をかけています。
 

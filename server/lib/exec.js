@@ -109,6 +109,37 @@ export function lastLineOf(file) {
 }
 
 /**
+ * ルートから 1 要素ずつたどり、ほかのユーザーが書き換えられる（mode & 0o022）ディレクトリやファイルを探します。
+ * シンボリックリンクはリンク先も同じ基準でたどるので、書き換えられる場所に置かれたリンクの差し替えも見つかります。
+ * 全員が書けても sticky（/tmp など）で、中身が自分か root のものなら、他人には差し替えられないため通します。
+ * 見つけた場所を返します（問題なければ null）。
+ */
+export function writablePart(file, depth = 0) {
+  if (depth > 16) return file
+  const uid = process.getuid?.()
+  const parts = file.split(path.sep).filter(Boolean)
+  let dir = path.sep
+  for (let i = 0; i < parts.length; i++) {
+    const next = path.join(dir, parts[i])
+    let dirSt
+    let st
+    try { dirSt = fs.lstatSync(dir); st = fs.lstatSync(next) } catch { return next }
+    if (dirSt.mode & 0o022) {
+      const sticky = (dirSt.mode & 0o1000) !== 0 && (st.uid === 0 || st.uid === uid)
+      if (!sticky) return dir
+    }
+    if (st.isSymbolicLink()) {
+      let dest
+      try { dest = path.resolve(dir, fs.readlinkSync(next)) } catch { return next }
+      return writablePart(path.join(dest, ...parts.slice(i + 1)), depth + 1)
+    }
+    if (i === parts.length - 1 && st.mode & 0o022) return next
+    dir = next
+  }
+  return null
+}
+
+/**
  * 出力の取り込み先（取得データ/）。シンボリックリンクで保存先の外へ出ていないことを確かめます。
  * フォルダを作る前に、まだ無いときは存在する一番近い親の実体を確かめるので、外を指すリンクの先に空のフォルダを作ることもありません。
  */
@@ -325,37 +356,6 @@ export function createExec(opts = {}) {
   }
 
   /* ---------------- プログラムの解決 ---------------- */
-
-  /**
-   * ルートから 1 要素ずつたどり、ほかのユーザーが書き換えられる（mode & 0o022）ディレクトリやファイルを探します。
-   * シンボリックリンクはリンク先も同じ基準でたどるので、書き換えられる場所に置かれたリンクの差し替えも見つかります。
-   * 全員が書けても sticky（/tmp など）で、中身が自分か root のものなら、他人には差し替えられないため通します。
-   * 見つけた場所を返します（問題なければ null）。
-   */
-  function writablePart(file, depth = 0) {
-    if (depth > 16) return file
-    const uid = process.getuid?.()
-    const parts = file.split(path.sep).filter(Boolean)
-    let dir = path.sep
-    for (let i = 0; i < parts.length; i++) {
-      const next = path.join(dir, parts[i])
-      let dirSt
-      let st
-      try { dirSt = fs.lstatSync(dir); st = fs.lstatSync(next) } catch { return next }
-      if (dirSt.mode & 0o022) {
-        const sticky = (dirSt.mode & 0o1000) !== 0 && (st.uid === 0 || st.uid === uid)
-        if (!sticky) return dir
-      }
-      if (st.isSymbolicLink()) {
-        let dest
-        try { dest = path.resolve(dir, fs.readlinkSync(next)) } catch { return next }
-        return writablePart(path.join(dest, ...parts.slice(i + 1)), depth + 1)
-      }
-      if (i === parts.length - 1 && st.mode & 0o022) return next
-      dir = next
-    }
-    return null
-  }
 
   function resolveProgram(name) {
     if (!cfg.allowed.has(name) || name.includes('/')) return { found: false, error: `${name} は実行を許可したプログラムではありません` }

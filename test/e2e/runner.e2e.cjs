@@ -37,6 +37,21 @@ async function main() {
   fs.mkdirSync(bin, { mode: 0o700 })
   fs.writeFileSync(path.join(bin, 'fakenmap'), `#!${process.execPath}\nrequire(${JSON.stringify(path.join(ROOT, 'test', 'helpers', 'fake-tool.cjs'))})\n`, { mode: 0o755 })
   fs.chmodSync(path.join(bin, 'fakenmap'), 0o755)
+  // Homebrew の代役。fakemissing を bin/ に書き出すだけで、ネットワークには触れません。
+  const ibin = path.join(tmp, 'ibin')
+  fs.mkdirSync(ibin, { mode: 0o755 })
+  fs.writeFileSync(path.join(ibin, 'brew'), `#!${process.execPath}
+const fs = require('node:fs')
+const what = process.argv[3] || ''
+process.stdout.write('==> Fetching ' + what + '\\n')
+process.stdout.write('\\u001b[32m==> Pouring\\u001b[0m 10%\\r==> Pouring 100%\\n')
+fs.writeFileSync(${JSON.stringify(path.join(bin, 'fakemissing'))}, '#!${process.execPath}\\nrequire(' + JSON.stringify(${JSON.stringify(path.join(ROOT, 'test', 'helpers', 'fake-tool.cjs'))}) + ')\\n', { mode: 0o755 })
+fs.chmodSync(${JSON.stringify(path.join(bin, 'fakemissing'))}, 0o755)
+process.stdout.write('==> Installed ' + what + '\\n')
+process.exit(0)
+`, { mode: 0o755 })
+  fs.chmodSync(path.join(ibin, 'brew'), 0o755)
+
   // 書き換えられる探索パス（グループが書ける）に置いたリンク → 「実行不可」
   const wbin = path.join(tmp, 'wbin')
   fs.mkdirSync(wbin)
@@ -74,7 +89,10 @@ async function main() {
     ],
   }]
   const cfgFile = path.join(tmp, 'e2e-config.json')
-  fs.writeFileSync(cfgFile, JSON.stringify({ allowed: ['fakenmap', 'fakemissing', 'fakeunsafe'], searchPaths: [bin, wbin], templates }))
+  fs.writeFileSync(cfgFile, JSON.stringify({
+    allowed: ['fakenmap', 'fakemissing', 'fakeunsafe'], searchPaths: [bin, wbin], templates,
+    installerPaths: [ibin], recipes: { fakemissing: { brew: 'fakemissing', go: null } },
+  }))
   const app = await _electron.launch({
     executablePath: path.join(ROOT, 'node_modules/electron/dist/electron'),
     args: [path.join(ROOT, 'test/e2e/main-e2e.mjs'), '--no-sandbox'], env: { ...env, SECOWL_E2E_CONFIG: cfgFile }, cwd: ROOT, timeout: 60000,
@@ -102,7 +120,7 @@ async function main() {
   const direct = await win.evaluate(async () => (await fetch('/api/exec/templates')).status)
   assert.equal(direct, 403, '鍵なしの API 呼び出しは 403')
   const keys = await win.evaluate(() => Object.keys(window.secowlDesktop).sort())
-  assert.deepEqual(keys, ['execLaunch', 'execSession', 'setTheme', 'setupFix', 'theme'])
+  assert.deepEqual(keys, ['execLaunch', 'execSession', 'setTheme', 'setupFix', 'setupInstall', 'theme'])
   assert.equal(await win.evaluate(() => JSON.stringify(Object.keys(localStorage)).includes('exec')), false, 'localStorage に鍵を置かない')
 
   for (const theme of ['light', 'dark']) {
@@ -143,8 +161,8 @@ async function main() {
     // 4) 実行: ネイティブの確認（短い）を経て起動し、出力が流れる
     const before = await app.evaluate(() => globalThis.__secowlTest.confirms.length)
     await win.getByRole('button', { name: 'fakenmap を実行' }).click()
-    await win.waitForSelector('.run-output')
-    await win.waitForFunction(() => /Discovered open port/.test(document.querySelector('.run-output')?.textContent || ''), null, { timeout: 15000 })
+    await win.waitForSelector('.run-live .run-output')
+    await win.waitForFunction(() => /Discovered open port/.test(document.querySelector('.run-live .run-output')?.textContent || ''), null, { timeout: 15000 })
     // 実行中でも、履歴に行が出ている（0 件のままにしない）
     await win.waitForFunction(() => /実行の履歴[\s\S]*?[1-9]\d* 件/.test(document.querySelector('.run-live ~ .card')?.textContent || ''), null, { timeout: 5000 })
     assert.match(await win.locator('.run-live ~ .card').innerText(), /実行中/)
@@ -158,8 +176,8 @@ async function main() {
 
     // 5) 出力は HTML として解釈しない
     assert.equal(await win.evaluate(() => window.__xss), undefined, '出力中のスクリプトが実行された')
-    assert.equal(await win.locator('.run-output img, .run-output script, .run-output b').count(), 0)
-    assert.match(await win.locator('.run-output').innerText(), /<img src=x onerror=/)
+    assert.equal(await win.locator('.run-live .run-output img, .run-live .run-output script, .run-live .run-output b').count(), 0)
+    assert.match(await win.locator('.run-live .run-output').innerText(), /<img src=x onerror=/)
 
     // 6) 完了 → 取り込みのプレビュー
     await win.waitForFunction(() => /完了しました/.test(document.querySelector('.run-done')?.textContent || ''), null, { timeout: 20000 })
@@ -233,6 +251,46 @@ async function main() {
   assert.equal(setupLines.at(-1).changed[0].path, wbin)
   assert.equal(typeof setupLines.at(-1).prev, 'string')
 
+  // 6b-3) 入っていないツールを、ネイティブの確認を経て入れる
+  assert.equal(fs.existsSync(path.join(bin, 'fakemissing')), false)
+  const setupText2 = await win.locator('.run-setup').innerText()
+  assert.match(setupText2, /Homebrew でまとめて入れる（1 件）/)
+  const beforeIns = await app.evaluate(() => globalThis.__secowlTest.confirms.length)
+  await win.getByRole('button', { name: /Homebrew でまとめて入れる/ }).click()
+  await win.waitForSelector('.dialog .run-facts')
+  const insText = await win.locator('.dialog').innerText()
+  assert.match(insText, /brew install fakemissing/)
+  assert.ok(insText.includes(path.join(ibin, 'brew')), '動かす実行ファイルの場所を見せる')
+  await shot('light-07e-install-confirm')
+  await win.getByRole('button', { name: '入れる', exact: true }).click()
+
+  // ネイティブの確認を経てから動く
+  await win.waitForFunction(() => /Installed fakemissing/.test(document.querySelector('.setup-install')?.textContent || ''), null, { timeout: 20000 })
+  const insConfirms = await app.evaluate(() => globalThis.__secowlTest.confirms)
+  assert.equal(insConfirms.length, beforeIns + 1, '導入でもネイティブの確認が 1 回出る')
+  assert.equal(insConfirms.at(-1).defaultId, 0)
+  assert.equal(insConfirms.at(-1).buttons[0], 'キャンセル')
+  assert.ok(insConfirms.at(-1).detail.includes('brew install fakemissing'))
+  // 端末の色指定は出さず、\r の進捗は最後の表示だけにする
+  const out = await win.locator('.setup-install .run-output').innerText()
+  assert.doesNotMatch(out, /\u001b\[/)
+  assert.match(out, /==> Pouring 100%/)
+  await win.waitForFunction(() => /入りました 1/.test(document.querySelector('.setup-install')?.textContent || ''), null, { timeout: 20000 })
+  await shot('light-07f-install-done')
+
+  // 入ったら、点検とコマンド一覧が読み直される
+  assert.equal(fs.existsSync(path.join(bin, 'fakemissing')), true)
+  await win.waitForFunction(() => !/未インストール/.test(document.querySelector('.run-pick')?.textContent || ''), null, { timeout: 15000 })
+  await win.waitForFunction(() => /使える 3/.test(document.querySelector('.run-setup')?.textContent || ''), null, { timeout: 15000 })
+
+  // 導入の記録も残る
+  const insLines = fs.readFileSync(path.join(data, '.secowl', 'setup.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  assert.equal(insLines.at(-1).event, 'setup.install.end')
+  assert.equal(insLines.at(-1).status, 'done')
+  assert.deepEqual(insLines.at(-2).commands, ['brew install fakemissing'])
+  await win.getByRole('button', { name: '閉じる' }).click()
+  await win.waitForFunction(() => !document.querySelector('.setup-install'), null, { timeout: 5000 })
+
   // 6c) 設定画面の Git: 生の出力を除外する行が無い保存先は警告し、ボタンで追記できる
   await win.getByRole('link', { name: '設定' }).first().click()
   await win.waitForSelector('text=Git（保存先の版管理）')
@@ -272,7 +330,7 @@ async function main() {
   await win.getByRole('button', { name: '実行前の確認' }).click()
   await win.waitForSelector('.dialog [aria-label="引数を 1 つずつ"]')
   await win.getByRole('button', { name: 'fakenmap を実行' }).click()
-  await win.waitForFunction(() => /ARGV/.test(document.querySelector('.run-output')?.textContent || ''), null, { timeout: 15000 })
+  await win.waitForFunction(() => /ARGV/.test(document.querySelector('.run-live .run-output')?.textContent || ''), null, { timeout: 15000 })
   const pid = await app.evaluate(() => {
     const { execService } = globalThis.__secowlTest
     const list = execService.list('2026-10-example-shop').filter((j) => j.status === 'running')

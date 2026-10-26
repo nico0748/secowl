@@ -27,6 +27,7 @@ import { localOnly } from './lib/guard.js'
 import { checkReport } from './lib/reportable.js'
 import { searchDocs } from './lib/search.js'
 import { createExec, ExecError, JOB_ID_RE } from './lib/exec.js'
+import { createInstall } from './lib/install.js'
 import { createSetup } from './lib/setup.js'
 
 export const app = express()
@@ -69,7 +70,12 @@ export function setHostBridge(bridge) { host = bridge }
  */
 export const execService = createExec()
 /** ツールの導入の点検と権限の修正。修正そのものは HTTP では受けず、メインプロセスが IPC で受けて呼びます。 */
-export const setupService = createSetup({ resolve: (program) => execService.resolveProgram(program) })
+export const installService = createInstall()
+export const setupService = createSetup({
+  resolve: (program) => execService.resolveProgram(program),
+  // brew・go 自身の置き場所も、権限を直す対象に入れます（直すまで導入を動かせないため）
+  extraUnsafe: () => installService.unsafePaths(),
+})
 
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest()
 function safeEq(a, b) {
@@ -104,8 +110,12 @@ execRouter.use('/exec', requireExec)
 execRouter.use('/engagements/:eid/exec', requireExec, requireEngagement)
 execRouter.get('/exec/templates', execWrap(() => execService.listTemplates()))
 // 導入の点検（読み取りだけ）と、権限を直す計画。実際に直すのは IPC からだけです。
-execRouter.get('/exec/setup', execWrap(() => setupService.report()))
+execRouter.get('/exec/setup', execWrap(() => ({ ...setupService.report(), installers: installService.installers() })))
 execRouter.post('/exec/setup/fix-plan', execWrap(() => setupService.planFix()))
+// 導入の計画と、いま動いている導入の状態。実際に始めるのは IPC からだけです。
+execRouter.post('/exec/setup/install-plan', execWrap((req) => installService.plan(req.body || {})))
+execRouter.get('/exec/setup/install', execWrap(() => installService.current()))
+execRouter.post('/exec/setup/install/stop', execWrap((req) => installService.stop(req.body?.jobId)))
 execRouter.post('/engagements/:eid/exec/plan', execWrap((req) => execService.plan(req.params.eid, req.body || {})))
 execRouter.get('/engagements/:eid/exec', execWrap((req) => execService.list(req.params.eid)))
 // 実行の記録（監査）のつながりを確かめる。書き換えや削除があると、切れた行の番号を返す
