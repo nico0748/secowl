@@ -1,18 +1,10 @@
 /*
- * ホームの「脆弱性スコア」と「テクノロジー」の色（PR #1 より前の版）。
- * この 2 枚のカードだけに使い、ほかの画面は tokens.css の配色のままにします。
- * 以前の版はライトのみでしたが、塗りの面と白文字の組なのでダークでも同じ値を使います。
+ * ホームの「テクノロジー」の色（PR #1 より前の版）と、「脆弱性スコア」の件数カードの印。
+ * 深刻度の色はトリアージと同じ tokens.css の --app-sev-* を使います。
+ * 以前の版はライトのみでしたが、カテゴリ色はダークでも同じ値を使います。
  * 色の直書きはこのファイルだけに置きます（scripts/check-colors.mjs の例外）。
  */
 :root {
-  /* 深刻度（CVSS 区分に対応する状態色） */
-  --dash-sev-critical: #890101;
-  --dash-sev-high: #ec0000;
-  --dash-sev-medium: #cd820a;
-  --dash-sev-low: #264af4;
-  --dash-sev-info: #949497;
-  --dash-on-sev: #ffffff;
-
   /* 技術スタックの内訳 */
   --dash-cat-1: #2a78d6;
   --dash-cat-2: #eb6834;
@@ -22,8 +14,8 @@
   --dash-cat-other: #b4b4b7;
 }
 
-/* 件数カードの印（丸に「!」） */
+/* 件数カードの印（丸に「!」）。色は .sev-* が当てる --sev-bg（面）と --sev-on（文字） */
 .sev-dot {
   width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
-  color: var(--dash-on-sev); font-size: 12px; font-weight: 700; line-height: 1;
+  background: var(--sev-bg); color: var(--sev-on); font-size: 12px; font-weight: 700; line-height: 1;
 }
