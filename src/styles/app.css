@@ -811,6 +811,11 @@ textarea.scope-lines[aria-invalid='true'] { border-color: var(--app-status-error
 }
 .setup-cmd-note { font-size: 13px; color: var(--app-text-muted); }
 .setup-foot { margin-top: var(--sp-3); }
+.setup-wordlists {
+  display: grid; gap: var(--sp-2); margin-top: var(--sp-4); padding: var(--sp-3);
+  border: 1px solid var(--app-border); border-radius: var(--radius-sm); background: var(--app-card-sub);
+}
+.setup-wordlists .setup-why { margin: 0; }
 .setup-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-3); }
 .setup-installers { margin-top: var(--sp-3); }
 .setup-install {

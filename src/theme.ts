@@ -20,7 +20,9 @@ declare global {
       /** 置き場所の権限の修正。メインプロセスのネイティブの確認を経てから直す */
       setupFix?: (req: { planId: string }) => Promise<import('./types').SetupFixResult>
       /** 導入を始める。メインプロセスのネイティブの確認を経てから動かす */
-      setupInstall?: (req: { planId: string }) => Promise<import('./types').InstallStartResult>
+      setupInstall?: (req: { planId: string }) => Promise<import('./types').SetupStartResult>
+      /** ワードリストの取得。メインプロセスのネイティブの確認を経てから動かす */
+      setupWordlists?: (req: { planId: string }) => Promise<import('./types').SetupStartResult>
     }
   }
 }

@@ -91,8 +91,10 @@ test('ブラウザ運用（ホスト橋渡しなし）では、実行系のル�
     ['GET', '/api/exec/setup'],
     ['POST', '/api/exec/setup/fix-plan'],
     ['POST', '/api/exec/setup/install-plan'],
-    ['GET', '/api/exec/setup/install'],
-    ['POST', '/api/exec/setup/install/stop'],
+    ['GET', '/api/exec/setup/wordlists'],
+    ['POST', '/api/exec/setup/wordlist-plan'],
+    ['GET', '/api/exec/setup/job'],
+    ['POST', '/api/exec/setup/job/stop'],
     ['POST', `/api/engagements/${E}/exec/plan`],
     ['GET', `/api/engagements/${E}/exec`],
     ['GET', `/api/engagements/${E}/exec/audit`],
@@ -222,17 +224,54 @@ test('導入は計画までが HTTP で、始めるルートは無い', { skip: 
   assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/install-plan', { headers: auth, body: { programs: ['ffuf'], via: 'pip' } })).status, 400)
 
   // 始めるのは IPC からだけ。HTTP には口を作っていない
-  for (const p of ['/api/exec/setup/install/start', '/api/exec/setup/install/run', '/api/exec/setup/install']) {
+  for (const p of ['/api/exec/setup/install/start', '/api/exec/setup/install', '/api/exec/setup/job/start']) {
     const bad = await raw(srv.baseUrl, 'POST', p, { headers: auth, body: { planId: plan.json.planId } })
     assert.ok([404, 403].includes(bad.status), `${p} → ${bad.status}`)
   }
-  // まだ何も動かしていないので、状態は空
-  const cur = await raw(srv.baseUrl, 'GET', '/api/exec/setup/install', { headers: auth })
+  // まだ何も動かしていないので、状態は空（進み具合は導入とワードリストで同じルート）
+  const cur = await raw(srv.baseUrl, 'GET', '/api/exec/setup/job', { headers: auth })
   assert.equal(cur.status, 200)
   assert.equal(cur.json, null)
-  assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/install/stop', { headers: auth, body: { jobId: plan.json.planId } })).status, 404)
+  assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/job/stop', { headers: auth, body: { jobId: plan.json.planId } })).status, 404)
 
   fs.rmSync(idir, { recursive: true, force: true })
+})
+
+test('ワードリストの状態と計画は HTTP で、始めるルートは無い', { skip: SKIP }, async () => {
+  app.setHostBridge({ execSession: KEY })
+  // 置き場所だけを一時フォルダに向けます（取得は走らせません）。
+  const hdir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-wlapi-')))
+  app.wordlistService.configure({ env: { HOME: hdir } })
+  try {
+    assert.equal((await raw(srv.baseUrl, 'GET', '/api/exec/setup/wordlists')).status, 403)
+    const r = await raw(srv.baseUrl, 'GET', '/api/exec/setup/wordlists', { headers: auth })
+    assert.equal(r.status, 200)
+    assert.equal(r.json.dir, path.join(hdir, 'wordlists'))
+    assert.equal(r.json.missing, r.json.files.length, 'まだ 1 本も無い')
+    assert.equal(r.json.full.present, false)
+    assert.deepEqual(r.json.available, [])
+    assert.equal(r.json.source.license, 'MIT', '出どころと使用許諾も画面に出す')
+
+    assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/wordlist-plan', { body: { ids: [r.json.files[0].id] } })).status, 403)
+    const plan = await raw(srv.baseUrl, 'POST', '/api/exec/setup/wordlist-plan', { headers: auth, body: { ids: [r.json.files[0].id] } })
+    assert.equal(plan.status, 200)
+    assert.match(plan.json.planId, /^wl-\d{13}-[0-9a-f]{8}$/)
+    assert.equal(plan.json.files.length, 1)
+    assert.ok(plan.json.files[0].url.startsWith('https://raw.githubusercontent.com/'), '取得先はサーバ側の表から組み立てる')
+
+    // 取るものはサーバ側が決める
+    assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/wordlist-plan', { headers: auth, body: { ids: ['../../etc/passwd'] } })).status, 404)
+    assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/wordlist-plan', { headers: auth, body: {} })).status, 400)
+
+    // 始めるのは IPC からだけ
+    for (const p of ['/api/exec/setup/wordlists', '/api/exec/setup/wordlists/start', '/api/exec/setup/wordlist-start']) {
+      const bad = await raw(srv.baseUrl, 'POST', p, { headers: auth, body: { planId: plan.json.planId } })
+      assert.ok([404, 403].includes(bad.status), `${p} → ${bad.status}`)
+    }
+  } finally {
+    app.wordlistService.configure({ env: process.env })
+    fs.rmSync(hdir, { recursive: true, force: true })
+  }
 })
 
 /* ---------------- 値の検査と正規化 ---------------- */

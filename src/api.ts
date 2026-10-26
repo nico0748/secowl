@@ -1,4 +1,4 @@
-import type { ExecAudit, ExecJob, ExecLaunchResult, ExecPlan, ExecStreamEvent, ExecTool, InstallJob, InstallPlan, InstallStartResult, SetupFixPlan, SetupFixResult, SetupReport, WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
+import type { ExecAudit, ExecJob, ExecLaunchResult, ExecPlan, ExecStreamEvent, ExecTool, InstallPlan, SetupFixPlan, SetupFixResult, SetupJob, SetupReport, SetupStartResult, WordlistPlan, WordlistReport, WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
 
 /** 読み込んだあとで別の場所からファイルが更新されていたため、保存しなかったことを示します（409）。 */
 export class StaleWriteError extends Error {
@@ -193,14 +193,23 @@ export const api = {
   },
   installPlan: (input: { programs: string[]; via: 'brew' | 'go' }) =>
     execCall<InstallPlan>('/api/exec/setup/install-plan', { method: 'POST', body: body(input) }),
-  installJob: () => execCall<InstallJob | null>('/api/exec/setup/install'),
-  installStop: (jobId: string) =>
-    execCall<InstallJob>('/api/exec/setup/install/stop', { method: 'POST', body: body({ jobId }) }),
+  setupJob: () => execCall<SetupJob | null>('/api/exec/setup/job'),
+  setupJobStop: (jobId: string) =>
+    execCall<SetupJob>('/api/exec/setup/job/stop', { method: 'POST', body: body({ jobId }) }),
+  wordlists: () => execCall<WordlistReport>('/api/exec/setup/wordlists'),
+  wordlistPlan: (input: { ids?: string[]; full?: boolean }) =>
+    execCall<WordlistPlan>('/api/exec/setup/wordlist-plan', { method: 'POST', body: body(input) }),
   /** 導入を始める依頼。権限の修正と同じく、メインプロセスの IPC（ネイティブの確認つき）に渡します。 */
-  installStart: async (planId: string): Promise<InstallStartResult> => {
+  installStart: async (planId: string): Promise<SetupStartResult> => {
     const d = window.secowlDesktop
     if (!d?.setupInstall) throw new Error('この機能はデスクトップ版でのみ使えます')
     return d.setupInstall({ planId })
+  },
+  /** ワードリストの取得を始める依頼。 */
+  wordlistStart: async (planId: string): Promise<SetupStartResult> => {
+    const d = window.secowlDesktop
+    if (!d?.setupWordlists) throw new Error('この機能はデスクトップ版でのみ使えます')
+    return d.setupWordlists({ planId })
   },
   /** 起動の依頼。HTTP では受けず、メインプロセスの IPC（ネイティブの確認つき）に渡します。 */
   execLaunch: async (eid: string, planId: string): Promise<ExecLaunchResult> => {
