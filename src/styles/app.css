@@ -810,7 +810,17 @@ textarea.scope-lines[aria-invalid='true'] { border-color: var(--app-status-error
   font: 13px/1.6 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace;
 }
 .setup-cmd-note { font-size: 13px; color: var(--app-text-muted); }
-.setup-toggle { margin-top: var(--sp-3); }
+.setup-foot { margin-top: var(--sp-3); }
+.setup-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+.setup-installers { margin-top: var(--sp-3); }
+.setup-install {
+  display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); padding: var(--sp-3);
+  border: 1px solid var(--app-border); border-radius: var(--radius-sm); background: var(--app-card-sub);
+}
+.setup-install .run-output { max-height: 260px; background: var(--app-card); }
+.setup-steps { display: grid; gap: var(--sp-1); }
+.setup-step { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: 13px; }
+.setup-step code { font-family: 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace; overflow-wrap: anywhere; }
 .setup-fix-list { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-3); }
 .setup-fix-row { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; font-size: 13px; }
 .setup-fix-row code { overflow-wrap: anywhere; font-family: 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace; }

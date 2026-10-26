@@ -24,7 +24,7 @@ process.env.SECOWL_DEFAULT_DATA ||= PACKAGED
   ? path.join(electronApp.getPath('documents'), 'SecOwl')
   : path.join(APP_ROOT, 'data')
 
-const { startServer, setHostBridge, execService, setupService } = await import('../server/app.js')
+const { startServer, setHostBridge, execService, setupService, installService } = await import('../server/app.js')
 
 const STATE_FILE = path.join(userData, 'window-state.json')
 const THEME_FILE = path.join(userData, 'theme.json')
@@ -178,6 +178,43 @@ ipcMain.handle('secowl:setup-fix', async (event, req) => {
   try {
     const res = await setupService.applyFix(String(req?.planId ?? ''), { confirm: confirmFix })
     return res.ok ? { ok: true, changed: res.changed, failed: res.failed } : { ok: false, cancelled: true }
+  } catch (err) {
+    return { ok: false, status: err?.status || 400, code: err?.code, error: String(err?.message || err) }
+  } finally {
+    confirming = false
+  }
+})
+
+/** 導入の最後の確認。動かす実行ファイルの絶対パスと、コマンドをそのまま見せます。 */
+async function confirmInstall(req) {
+  const head = req.commands.slice(0, 12)
+  const more = req.commands.length - head.length
+  const res = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: 'warning',
+    title: 'SecOwl',
+    message: `${req.viaLabel} で ${req.commands.length} 個のツールを入れます`,
+    detail: [
+      `実行ファイル: ${req.installerPath}`,
+      '',
+      ...head,
+      ...(more > 0 ? [`ほか ${more} 件`] : []),
+      '',
+      'ネットワークに接続し、配布元からソフトウェアを取得します。',
+    ].join('\n'),
+    buttons: ['キャンセル', '入れる'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  return res.response === 1
+}
+
+ipcMain.handle('secowl:setup-install', async (event, req) => {
+  if (!trustedSender(event)) return { ok: false, status: 403, error: 'この画面からは実行できません' }
+  if (confirming) return { ok: false, status: 409, error: '別の確認を待っています' }
+  confirming = true
+  try {
+    return await installService.start(String(req?.planId ?? ''), { confirm: confirmInstall })
   } catch (err) {
     return { ok: false, status: err?.status || 400, code: err?.code, error: String(err?.message || err) }
   } finally {
@@ -404,7 +441,7 @@ if (!electronApp.requestSingleInstanceLock()) {
     if (quitting) return
     quitting = true
     event.preventDefault()
-    execService.killAll({ waitMs: 5000 }).catch(() => {}).finally(() => electronApp.quit())
+    Promise.allSettled([execService.killAll({ waitMs: 5000 }), installService.killAll()]).finally(() => electronApp.quit())
   })
   // 異常終了のときの最後の手段（同期）。待たずに残りのグループへ SIGKILL を送ります。
   process.on('exit', () => { try { execService.killNow() } catch { /* 終了中なので何もしません */ } })

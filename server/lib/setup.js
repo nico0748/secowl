@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ALLOWED } from './command-templates.js'
-import { dataRoot } from './config.js'
-import { displayCommand, ExecError, lastLineOf } from './exec.js'
+import { displayCommand, ExecError } from './exec.js'
+import { appendSetupAudit, readSetupAudit } from './setup-audit.js'
 import { installRecipe } from './tool-install.js'
 
 /**
@@ -21,7 +21,6 @@ const PLAN_TTL_MS = 2 * 60 * 1000
 const MAX_PLANS = 20
 const PLAN_ID_RE = /^fix-\d{13}-[0-9a-f]{8}$/
 
-const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex')
 const oct = (mode) => (mode & 0o7777).toString(8).padStart(3, '0')
 
 /** 直してよい場所。この下にないものは、コマンドをお見せして手でやってもらいます。 */
@@ -36,6 +35,8 @@ export function defaultFixRoots(home = os.homedir()) {
  * @param {string[]} [opts.roots]   直してよい場所（既定は defaultFixRoots）
  * @param {number} [opts.uid]
  * @param {() => Date} [opts.now]
+ * @param {() => string[]} [opts.extraUnsafe]  点検の対象の外で、直す必要のある場所（brew・go の置き場所など）
+ * @param {(program: string) => {brew: string|null, go: string|null}} [opts.recipe]  入れ方（テストの差し替え用）
  */
 export function createSetup(opts = {}) {
   const cfg = {
@@ -44,6 +45,8 @@ export function createSetup(opts = {}) {
     roots: opts.roots || null,
     uid: opts.uid ?? process.getuid?.() ?? -1,
     now: opts.now || (() => new Date()),
+    extraUnsafe: opts.extraUnsafe || (() => []),
+    recipe: opts.recipe || installRecipe,
   }
   const plans = new Map()
   const roots = () => cfg.roots || defaultFixRoots()
@@ -79,7 +82,7 @@ export function createSetup(opts = {}) {
     const programs = [...cfg.allowed].sort().map((program) => {
       const r = cfg.resolve(program) || { found: false }
       const state = !r.found ? 'missing' : r.unsafe ? 'unsafe' : 'ok'
-      const { brew, go } = installRecipe(program)
+      const { brew, go } = cfg.recipe(program)
       return {
         program,
         state,
@@ -94,10 +97,11 @@ export function createSetup(opts = {}) {
     })
     const seen = new Set()
     const fixes = []
-    for (const p of programs) {
-      if (p.state !== 'unsafe' || !p.unsafeAt || seen.has(p.unsafeAt)) continue
-      seen.add(p.unsafeAt)
-      fixes.push(inspect(p.unsafeAt))
+    // 点検したプログラムの置き場所に、導入に使うもの（brew・go）の置き場所を足します。
+    for (const at of [...programs.filter((p) => p.state === 'unsafe').map((p) => p.unsafeAt), ...cfg.extraUnsafe()]) {
+      if (!at || seen.has(at)) continue
+      seen.add(at)
+      fixes.push(inspect(at))
     }
     const counts = { ok: 0, missing: 0, unsafe: 0 }
     for (const p of programs) counts[p.state]++
@@ -177,30 +181,8 @@ export function createSetup(opts = {}) {
 
   /* ---------------- 記録 ---------------- */
 
-  /** 保存先の直下の .secowl/（診断対象の一覧には出ません）。 */
-  function setupDir() {
-    const dir = path.join(dataRoot(), '.secowl')
-    fs.mkdirSync(dir, { recursive: true })
-    return dir
-  }
-
-  function auditFile() { return path.join(setupDir(), 'setup.jsonl') }
-
-  /** 追記専用の記録。実行の記録と同じく、各行に前の行の SHA-256 を持たせます。 */
-  function audit(event, entry = {}) {
-    const file = auditFile()
-    const last = lastLineOf(file)
-    const prev = last ? sha256(last) : ''
-    const line = JSON.stringify({ ts: cfg.now().toISOString(), event, source: 'ui', ...entry, prev })
-    fs.appendFileSync(file, `${line}\n`, { mode: 0o600 })
-    return JSON.parse(line)
-  }
-
-  function history(limit = 20) {
-    let lines = []
-    try { lines = fs.readFileSync(auditFile(), 'utf8').split('\n').filter(Boolean) } catch { /* まだありません */ }
-    return lines.slice(-limit).map((l) => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean)
-  }
+  const audit = (event, entry) => appendSetupAudit(event, entry, cfg.now())
+  const history = (limit = 20) => readSetupAudit(limit)
 
   /** テスト用の差し替え口。同じプロセスのコードからだけ呼べます。 */
   function configure(patch) {

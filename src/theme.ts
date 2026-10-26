@@ -19,6 +19,8 @@ declare global {
       execLaunch?: (req: { eid: string; planId: string }) => Promise<import('./types').ExecLaunchResult>
       /** 置き場所の権限の修正。メインプロセスのネイティブの確認を経てから直す */
       setupFix?: (req: { planId: string }) => Promise<import('./types').SetupFixResult>
+      /** 導入を始める。メインプロセスのネイティブの確認を経てから動かす */
+      setupInstall?: (req: { planId: string }) => Promise<import('./types').InstallStartResult>
     }
   }
 }

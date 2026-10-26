@@ -4,7 +4,7 @@
  * アプリ本体には、環境変数や HTTP でこの差し替えを受ける口はありません（同じプロセスのコードだけが configure を呼べます）。
  */
 import fs from 'node:fs'
-import { execService, setupService } from '../../server/app.js'
+import { execService, installService, setupService } from '../../server/app.js'
 
 const cfg = JSON.parse(fs.readFileSync(process.env.SECOWL_E2E_CONFIG, 'utf8'))
 execService.configure({
@@ -16,6 +16,9 @@ execService.configure({
   drainMs: 500,
 })
 // 導入の点検も、本物のツールではなく代役だけを見るようにします。
-setupService.configure({ allowed: new Set(cfg.allowed) })
-globalThis.__secowlTest = { execService, setupService, confirms: [] }
+// 入れ方の表も代役に差し替えます（本物の Homebrew や Go は動かしません）。
+const recipe = (program) => cfg.recipes?.[program] || { brew: null, go: null }
+setupService.configure({ allowed: new Set(cfg.allowed), recipe })
+installService.configure({ allowed: new Set(cfg.allowed), searchPaths: cfg.installerPaths || [], recipe })
+globalThis.__secowlTest = { execService, installService, setupService, confirms: [] }
 await import('../../electron/main.js')

@@ -4,6 +4,7 @@
 import test, { before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import matter from 'gray-matter'
 import { seed, E } from '../helpers/seed.mjs'
@@ -89,6 +90,9 @@ test('ブラウザ運用（ホスト橋渡しなし）では、実行系のル�
     ['GET', '/api/exec/templates'],
     ['GET', '/api/exec/setup'],
     ['POST', '/api/exec/setup/fix-plan'],
+    ['POST', '/api/exec/setup/install-plan'],
+    ['GET', '/api/exec/setup/install'],
+    ['POST', '/api/exec/setup/install/stop'],
     ['POST', `/api/engagements/${E}/exec/plan`],
     ['GET', `/api/engagements/${E}/exec`],
     ['GET', `/api/engagements/${E}/exec/audit`],
@@ -174,6 +178,44 @@ test('導入の点検は鍵つきの GET で返り、直す場所が無ければ
   const { ALLOWED } = await import('../../server/lib/command-templates.js')
   app.setupService.configure({ allowed: ALLOWED })
   exec.configure({ allowed: new Set(['fakenmap', 'fakehttpx']), searchPaths: [bin] })
+})
+
+test('導入は計画までが HTTP で、始めるルートは無い', { skip: SKIP }, async () => {
+  app.setHostBridge({ execSession: KEY })
+  // brew の代役を置いた場所だけを見ます（本物の Homebrew は動かしません）。
+  const idir = fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-ins-'))
+  fs.chmodSync(idir, 0o755)
+  fs.writeFileSync(path.join(idir, 'brew'), `#!${process.execPath}\nprocess.exit(0)\n`, { mode: 0o755 })
+  fs.chmodSync(path.join(idir, 'brew'), 0o755)
+  app.installService.configure({ searchPaths: [idir], allowed: new Set(['ffuf']) })
+
+  // 点検の結果に、導入に使うものの状態が入る
+  const r = await raw(srv.baseUrl, 'GET', '/api/exec/setup', { headers: auth })
+  assert.equal(r.json.installers.find((i) => i.name === 'brew').state, 'ok')
+  assert.equal(r.json.installers.find((i) => i.name === 'go').state, 'missing')
+
+  assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/install-plan', { body: { programs: ['ffuf'], via: 'brew' } })).status, 403)
+  const plan = await raw(srv.baseUrl, 'POST', '/api/exec/setup/install-plan', { headers: auth, body: { programs: ['ffuf'], via: 'brew' } })
+  assert.equal(plan.status, 200)
+  assert.deepEqual(plan.json.steps, [{ program: 'ffuf', command: 'brew install ffuf' }])
+  assert.equal(plan.json.installerPath, fs.realpathSync(path.join(idir, 'brew')))
+
+  // 入れてよいものと入れ方は、サーバ側が決める
+  assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/install-plan', { headers: auth, body: { programs: ['curl'], via: 'brew' } })).status, 403)
+  assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/install-plan', { headers: auth, body: { programs: ['ffuf'], via: 'pip' } })).status, 400)
+
+  // 始めるのは IPC からだけ。HTTP には口を作っていない
+  for (const p of ['/api/exec/setup/install/start', '/api/exec/setup/install/run', '/api/exec/setup/install']) {
+    const bad = await raw(srv.baseUrl, 'POST', p, { headers: auth, body: { planId: plan.json.planId } })
+    assert.ok([404, 403].includes(bad.status), `${p} → ${bad.status}`)
+  }
+  // まだ何も動かしていないので、状態は空
+  const cur = await raw(srv.baseUrl, 'GET', '/api/exec/setup/install', { headers: auth })
+  assert.equal(cur.status, 200)
+  assert.equal(cur.json, null)
+  assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/install/stop', { headers: auth, body: { jobId: plan.json.planId } })).status, 404)
+
+  fs.rmSync(idir, { recursive: true, force: true })
 })
 
 /* ---------------- 値の検査と正規化 ---------------- */

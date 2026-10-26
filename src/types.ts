@@ -390,6 +390,18 @@ export interface SetupFix {
   nextMode?: string
 }
 
+/** 導入に使うもの（Homebrew・Go）の状態 */
+export interface SetupInstaller {
+  name: 'brew' | 'go'
+  label: string
+  state: 'ok' | 'missing' | 'unsafe'
+  path: string | null
+  unsafeAt: string | null
+  reason: string | null
+  /** 入っていないときの案内 */
+  hint: string | null
+}
+
 export interface SetupReport {
   os: string
   counts: { ok: number; missing: number; unsafe: number }
@@ -397,7 +409,34 @@ export interface SetupReport {
   fixes: SetupFix[]
   /** アプリから直せる件数 */
   fixable: number
+  installers: SetupInstaller[]
 }
+
+export interface InstallPlan {
+  planId: string
+  expiresAt: string
+  via: 'brew' | 'go'
+  viaLabel: string
+  installerPath: string
+  steps: { program: string; command: string }[]
+}
+
+export type InstallStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'stopped' | 'timeout'
+
+export interface InstallJob {
+  jobId: string
+  via: 'brew' | 'go'
+  viaLabel: string
+  status: 'running' | 'done' | 'failed' | 'stopped'
+  startedAt: string
+  endedAt: string | null
+  steps: { program: string; command: string; status: InstallStepStatus; exitCode: number | null; error: string | null }[]
+  output: string
+}
+
+export type InstallStartResult =
+  | { ok: true; jobId: string }
+  | { ok: false; cancelled?: boolean; status?: number; code?: string; error?: string }
 
 export interface SetupFixPlan {
   planId: string
