@@ -1,0 +1,103 @@
+/*
+ * CVSS 計算機の見た目（10/12 以前の版）。
+ * 計算機のダイアログ（.dialog.cvss-legacy）の中だけに効かせ、ほかの画面は tokens.css の配色のままにします。
+ * 以前の版はライトのみだったため、ライトでは当時の色をそのまま使い、ダークでは同じ形を現行の配色で描きます。
+ * 色の直書きはこのファイルだけに置きます（scripts/check-colors.mjs の例外）。
+ */
+
+.cvss-legacy {
+  /* 深刻度のピル（以前の版の色。文字は白） */
+  --cvss-sev-critical: #890101;
+  --cvss-sev-high: #ec0000;
+  --cvss-sev-medium: #cd820a;
+  --cvss-sev-low: #264af4;
+  --cvss-sev-info: #949497;
+  --cvss-on-sev: #ffffff;
+
+  /* 選んだ項目（枠 + 薄い地）。ダークでは現行の基調色から作ります */
+  --cvss-sel: var(--app-primary);
+  --cvss-sel-bg: color-mix(in srgb, var(--app-primary) 16%, var(--app-overlay));
+  --cvss-warn: var(--app-status-warning);
+  --cvss-warn-bg: color-mix(in srgb, var(--app-status-warning) 12%, var(--app-overlay));
+}
+
+/* ライト: 以前の版の色に置き換えます（DADS のプリミティブカラー） */
+:root[data-theme="light"] .cvss-legacy {
+  --app-overlay: #ffffff;
+  --app-card: #ffffff;
+  --app-text: #1a1a1c;
+  --app-text-sub: #626264;
+  --app-text-muted: #7f7f78;
+  --app-border: #d8d8db;
+  --app-primary: #0017c1;
+  --app-primary-hover: #000071;
+  --app-primary-pressed: #000071;
+  --app-on-primary: #ffffff;
+  --app-focus-ring: #0031db;
+  --app-elev-0: 0 1px 2px rgba(26, 26, 28, 0.06), 0 1px 6px rgba(26, 26, 28, 0.04);
+  --cvss-sel: #0017c1;
+  --cvss-sel-bg: #e8f1fe;
+  --cvss-warn: #c87504;
+  --cvss-warn-bg: #f3eee5;
+  --cvss-quiet-hover: #f1f1f4;
+  box-shadow: 0 10px 34px rgba(26, 26, 28, 0.22);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .cvss-legacy {
+    --app-overlay: #ffffff;
+    --app-card: #ffffff;
+    --app-text: #1a1a1c;
+    --app-text-sub: #626264;
+    --app-text-muted: #7f7f78;
+    --app-border: #d8d8db;
+    --app-primary: #0017c1;
+    --app-primary-hover: #000071;
+    --app-primary-pressed: #000071;
+    --app-on-primary: #ffffff;
+    --app-focus-ring: #0031db;
+    --app-elev-0: 0 1px 2px rgba(26, 26, 28, 0.06), 0 1px 6px rgba(26, 26, 28, 0.04);
+    --cvss-sel: #0017c1;
+    --cvss-sel-bg: #e8f1fe;
+    --cvss-warn: #c87504;
+    --cvss-warn-bg: #f3eee5;
+    --cvss-quiet-hover: #f1f1f4;
+    box-shadow: 0 10px 34px rgba(26, 26, 28, 0.22);
+  }
+}
+
+/* 項目のボタン: 未選択は細い枠、選択は「枠 + 薄い地 + 太字」。✓ と hover の地は付けません */
+.cvss-legacy .chip {
+  border: 1px solid var(--app-border); background: var(--app-card); color: var(--app-text-sub);
+}
+.cvss-legacy .chip:hover { background: var(--app-card); }
+.cvss-legacy .chip.on,
+.cvss-legacy .chip.on:hover {
+  border-color: var(--cvss-sel); background: var(--cvss-sel-bg); color: var(--cvss-sel); font-weight: 700;
+}
+.cvss-legacy .filters .chip.on::before { content: none; }
+
+/* 深刻度のピル: 形のアイコンなし、塗り + 白文字 */
+.cvss-legacy .cvss-sev-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 700; padding: 1px 10px; border-radius: 999px;
+  color: var(--cvss-on-sev); white-space: nowrap;
+}
+.cvss-legacy .cvss-sev-pill.critical { background: var(--cvss-sev-critical); }
+.cvss-legacy .cvss-sev-pill.high { background: var(--cvss-sev-high); }
+.cvss-legacy .cvss-sev-pill.medium { background: var(--cvss-sev-medium); }
+.cvss-legacy .cvss-sev-pill.low { background: var(--cvss-sev-low); }
+.cvss-legacy .cvss-sev-pill.info { background: var(--cvss-sev-info); }
+
+/* v4.0 の注意書き: 左の太線 + 薄い地。! のアイコンは付けません */
+.cvss-legacy .banner.warn {
+  background: var(--cvss-warn-bg); border: 0; border-left: 4px solid var(--cvss-warn);
+  padding: var(--sp-3) var(--sp-4);
+}
+.cvss-legacy .banner.warn::before { content: none; }
+
+/* ボタン: 押せないときは薄くするだけ。控えめなボタンの hover は灰色の地 */
+.cvss-legacy .btn.quiet:hover { background: var(--cvss-quiet-hover, color-mix(in srgb, var(--app-text) 8%, var(--app-card))); }
+.cvss-legacy .btn:disabled,
+.cvss-legacy .btn:disabled:hover {
+  background: var(--app-primary); color: var(--app-on-primary); border-color: var(--app-primary); opacity: 0.5;
+}
