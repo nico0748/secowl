@@ -88,6 +88,26 @@ export function defaultSearchPaths(env = process.env, home = os.homedir()) {
   return [...new Set(list.filter((p) => p && path.isAbsolute(p)))]
 }
 
+/** ファイルの最後の 1 行。全体を読まず、末尾から必要なぶんだけ読みます（長期の案件で毎回遅くならないように）。 */
+export function lastLineOf(file) {
+  let fd
+  try {
+    fd = fs.openSync(file, 'r')
+    const size = fs.fstatSync(fd).size
+    let chunk = 16 * 1024
+    for (;;) {
+      const len = Math.min(chunk, size)
+      const buf = Buffer.alloc(len)
+      fs.readSync(fd, buf, 0, len, size - len)
+      const text = buf.toString('utf8').replace(/\n+$/, '')
+      const at = text.lastIndexOf('\n')
+      if (at !== -1) return text.slice(at + 1)
+      if (len >= size) return text // ファイル全体が 1 行
+      chunk *= 4
+    }
+  } catch { return '' } finally { if (fd !== undefined) try { fs.closeSync(fd) } catch { /* 閉じられなくても続けます */ } }
+}
+
 /**
  * 出力の取り込み先（取得データ/）。シンボリックリンクで保存先の外へ出ていないことを確かめます。
  * フォルダを作る前に、まだ無いときは存在する一番近い親の実体を確かめるので、外を指すリンクの先に空のフォルダを作ることもありません。
@@ -376,26 +396,6 @@ export function createExec(opts = {}) {
   }
 
   /* ---------------- 監査記録 ---------------- */
-
-  /** ファイルの最後の 1 行。全体を読まず、末尾から必要なぶんだけ読みます（長期の案件で毎回遅くならないように）。 */
-  function lastLineOf(file) {
-    let fd
-    try {
-      fd = fs.openSync(file, 'r')
-      const size = fs.fstatSync(fd).size
-      let chunk = 16 * 1024
-      for (;;) {
-        const len = Math.min(chunk, size)
-        const buf = Buffer.alloc(len)
-        fs.readSync(fd, buf, 0, len, size - len)
-        const text = buf.toString('utf8').replace(/\n+$/, '')
-        const at = text.lastIndexOf('\n')
-        if (at !== -1) return text.slice(at + 1)
-        if (len >= size) return text // ファイル全体が 1 行
-        chunk *= 4
-      }
-    } catch { return '' } finally { if (fd !== undefined) try { fs.closeSync(fd) } catch { /* 閉じられなくても続けます */ } }
-  }
 
   function auditFile(eid) { return path.join(secowlDir(eid), 'audit.jsonl') }
 

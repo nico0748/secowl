@@ -19,4 +19,6 @@ contextBridge.exposeInMainWorld('secowlDesktop', {
   // URL・ログ・localStorage には出さない）。execLaunch は起動の依頼で、メインプロセスのネイティブの確認を経てから起動します。
   execSession: () => ipcRenderer.invoke('secowl:exec-session'),
   execLaunch: (req) => ipcRenderer.invoke('secowl:exec-launch', { eid: String(req && req.eid || ''), planId: String(req && req.planId || '') }),
+  // 置き場所の権限を直す依頼。直す場所はサーバ側が点検から決めるので、画面からは planId しか渡せません。
+  setupFix: (req) => ipcRenderer.invoke('secowl:setup-fix', { planId: String(req && req.planId || '') }),
 })

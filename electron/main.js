@@ -24,7 +24,7 @@ process.env.SECOWL_DEFAULT_DATA ||= PACKAGED
   ? path.join(electronApp.getPath('documents'), 'SecOwl')
   : path.join(APP_ROOT, 'data')
 
-const { startServer, setHostBridge, execService } = await import('../server/app.js')
+const { startServer, setHostBridge, execService, setupService } = await import('../server/app.js')
 
 const STATE_FILE = path.join(userData, 'window-state.json')
 const THEME_FILE = path.join(userData, 'theme.json')
@@ -142,6 +142,42 @@ ipcMain.handle('secowl:exec-launch', async (event, req) => {
   try {
     const res = await execService.launch(String(req?.eid ?? ''), String(req?.planId ?? ''), { confirm: confirmNative })
     return res.ok ? { ok: true, jobId: res.jobId } : { ok: false, cancelled: true }
+  } catch (err) {
+    return { ok: false, status: err?.status || 400, code: err?.code, error: String(err?.message || err) }
+  } finally {
+    confirming = false
+  }
+})
+
+/** 権限の修正の最後の確認。直す場所をそのまま見せます（場所は画面ではなくサーバ側が決めています）。 */
+async function confirmFix(req) {
+  const head = req.paths.slice(0, 8)
+  const more = req.paths.length - head.length
+  const res = await dialog.showMessageBox(mainWindow ?? undefined, {
+    type: 'warning',
+    title: 'SecOwl',
+    message: `${req.count} 個の場所の権限を変えます`,
+    detail: [
+      'ほかのユーザーが書き換えられないようにします（chmod go-w）。',
+      '',
+      ...head,
+      ...(more > 0 ? [`ほか ${more} 件`] : []),
+    ].join('\n'),
+    buttons: ['キャンセル', '権限を変える'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  })
+  return res.response === 1
+}
+
+ipcMain.handle('secowl:setup-fix', async (event, req) => {
+  if (!trustedSender(event)) return { ok: false, status: 403, error: 'この画面からは実行できません' }
+  if (confirming) return { ok: false, status: 409, error: '別の確認を待っています' }
+  confirming = true
+  try {
+    const res = await setupService.applyFix(String(req?.planId ?? ''), { confirm: confirmFix })
+    return res.ok ? { ok: true, changed: res.changed, failed: res.failed } : { ok: false, cancelled: true }
   } catch (err) {
     return { ok: false, status: err?.status || 400, code: err?.code, error: String(err?.message || err) }
   } finally {

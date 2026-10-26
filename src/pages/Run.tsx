@@ -4,6 +4,7 @@ import { api } from '../api'
 import { execAvailable } from '../platform'
 import { useAsync, useStore } from '../state'
 import { Dialog } from '../components/Dialog'
+import { SetupPanel } from '../components/SetupPanel'
 import { NoEngagement } from './shared'
 import type { ExecAudit, ExecCommand, ExecJob, ExecPlan, ExecStatus, ExecTool, ImportResult } from '../types'
 
@@ -54,7 +55,8 @@ function StatusTag({ status }: { status: ExecStatus }) {
 function RunInner({ eid }: { eid: string }) {
   const { notify, bump, revision } = useStore()
   const [params, setParams] = useSearchParams()
-  const { data: tools, error: toolsError, loading } = useAsync(() => api.execTemplates(), [])
+  // 権限を直したあとは使えるコマンドが変わるので、revision で読み直します。
+  const { data: tools, error: toolsError, loading } = useAsync(() => api.execTemplates(), [revision])
   const { data: surfaces } = useAsync(() => api.surfaces(eid), [eid, revision])
   const { data: history, reload: reloadHistory } = useAsync(() => api.execJobs(eid), [eid, revision])
 
@@ -260,6 +262,8 @@ function RunInner({ eid }: { eid: string }) {
         <Link className="btn quiet" to="/scope">スコープ設定</Link>
       </div>
       <p className="run-lead">{'用意したコマンドのテンプレートから、許可したプログラムだけを起動します。実行の前に、対象がスコープの内側か、書面の承認と診断期間がそろっているかを確認し、引数を 1 つずつお見せします。実行した内容は、ツール実行ログと実行の記録（監査）に残ります。'}</p>
+
+      <SetupPanel />
 
       <div className="run-layout">
         <div className="card run-pick">

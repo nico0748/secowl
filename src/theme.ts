@@ -17,6 +17,8 @@ declare global {
       execSession?: () => Promise<string | null>
       /** 起動の依頼。メインプロセスのネイティブの確認を経てから起動する */
       execLaunch?: (req: { eid: string; planId: string }) => Promise<import('./types').ExecLaunchResult>
+      /** 置き場所の権限の修正。メインプロセスのネイティブの確認を経てから直す */
+      setupFix?: (req: { planId: string }) => Promise<import('./types').SetupFixResult>
     }
   }
 }

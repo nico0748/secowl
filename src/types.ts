@@ -366,6 +366,50 @@ export type ExecStreamEvent =
   | { t: 'overflow'; after: number }
   | { t: 'end'; job: ExecJob }
 
+/* ---------------- 導入の点検と権限の修正 ---------------- */
+
+/** 1 つのプログラムの状態。ok = 使える / missing = 入っていない / unsafe = ほかのユーザーが書き換えられる場所にある */
+export interface SetupProgram {
+  program: string
+  state: 'ok' | 'missing' | 'unsafe'
+  path: string | null
+  /** unsafe のとき、書き換えられてしまう場所 */
+  unsafeAt: string | null
+  reason: string | null
+  /** 入れ方（固定の表。無い手段は null） */
+  install: { brew: string | null; go: string | null }
+}
+
+/** 直す必要のある場所 1 件。can が false のときは command を手でお使いいただきます。 */
+export interface SetupFix {
+  path: string
+  command: string
+  can: boolean
+  why: string | null
+  mode?: string
+  nextMode?: string
+}
+
+export interface SetupReport {
+  os: string
+  counts: { ok: number; missing: number; unsafe: number }
+  programs: SetupProgram[]
+  fixes: SetupFix[]
+  /** アプリから直せる件数 */
+  fixable: number
+}
+
+export interface SetupFixPlan {
+  planId: string
+  expiresAt: string
+  paths: SetupFix[]
+  blocked: SetupFix[]
+}
+
+export type SetupFixResult =
+  | { ok: true; changed: { path: string; from: string; to: string }[]; failed: { path: string; error: string }[] }
+  | { ok: false; cancelled?: boolean; status?: number; code?: string; error?: string }
+
 export type ExecLaunchResult =
   | { ok: true; jobId: string }
   | { ok: false; cancelled?: boolean; status?: number; code?: string; error?: string }

@@ -1,4 +1,4 @@
-import type { ExecAudit, ExecJob, ExecLaunchResult, ExecPlan, ExecStreamEvent, ExecTool, WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
+import type { ExecAudit, ExecJob, ExecLaunchResult, ExecPlan, ExecStreamEvent, ExecTool, SetupFixPlan, SetupFixResult, SetupReport, WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
 
 /** 読み込んだあとで別の場所からファイルが更新されていたため、保存しなかったことを示します（409）。 */
 export class StaleWriteError extends Error {
@@ -183,6 +183,14 @@ export const api = {
   execImport: (eid: string, jobId: string, opts: { dryRun: boolean }) =>
     execCall<ImportResult>(`${eidPath(eid)}/${encodeURIComponent(jobId)}/import`, { method: 'POST', body: body(opts) }),
   execStream,
+  setupReport: () => execCall<SetupReport>('/api/exec/setup'),
+  setupFixPlan: () => execCall<SetupFixPlan>('/api/exec/setup/fix-plan', { method: 'POST', body: body({}) }),
+  /** 権限の修正の依頼。起動と同じく、メインプロセスの IPC（ネイティブの確認つき）に渡します。 */
+  setupFix: async (planId: string): Promise<SetupFixResult> => {
+    const d = window.secowlDesktop
+    if (!d?.setupFix) throw new Error('この機能はデスクトップ版でのみ使えます')
+    return d.setupFix({ planId })
+  },
   /** 起動の依頼。HTTP では受けず、メインプロセスの IPC（ネイティブの確認つき）に渡します。 */
   execLaunch: async (eid: string, planId: string): Promise<ExecLaunchResult> => {
     const d = window.secowlDesktop

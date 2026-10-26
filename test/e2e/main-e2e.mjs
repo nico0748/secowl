@@ -4,7 +4,7 @@
  * アプリ本体には、環境変数や HTTP でこの差し替えを受ける口はありません（同じプロセスのコードだけが configure を呼べます）。
  */
 import fs from 'node:fs'
-import { execService } from '../../server/app.js'
+import { execService, setupService } from '../../server/app.js'
 
 const cfg = JSON.parse(fs.readFileSync(process.env.SECOWL_E2E_CONFIG, 'utf8'))
 execService.configure({
@@ -15,5 +15,7 @@ execService.configure({
   killGraceMs: 500,
   drainMs: 500,
 })
-globalThis.__secowlTest = { execService, confirms: [] }
+// 導入の点検も、本物のツールではなく代役だけを見るようにします。
+setupService.configure({ allowed: new Set(cfg.allowed) })
+globalThis.__secowlTest = { execService, setupService, confirms: [] }
 await import('../../electron/main.js')
