@@ -1,0 +1,1 @@
+{"commandline":"ffuf -u https://app.example.com/FUZZ -w words.txt -o ffuf.json","results":[{"url":"https://app.example.com/admin","status":403,"length":153},{"url":"https://app.example.com/backup.zip","status":200,"length":20480}]}

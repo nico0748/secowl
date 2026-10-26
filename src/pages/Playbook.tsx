@@ -33,7 +33,7 @@ export function PlaybookPage() {
         <span className="tag">E0 事前準備 → E4 報告</span>
       </div>
 
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
         OWASP WSTG v4.2・OWASP Top 10:2025・CVSS v3.1 に沿った標準手順書です。内容は{' '}
         <code>knowledge/playbook/</code> の Markdown なので、手元で書き足せます。
       </p>
@@ -48,7 +48,7 @@ export function PlaybookPage() {
               onClick={() => { const n = new URLSearchParams(params); n.set('phase', p.phase); setParams(n) }}
             >
               {p.label} {p.title}
-              {st && <span style={{ marginLeft: 6, color: 'var(--text-muted)' }}>{STATE_LABEL[st]}</span>}
+              {st && <span style={{ marginLeft: 6, color: 'var(--app-text-muted)' }}>{STATE_LABEL[st]}</span>}
             </button>
           )
         })}
@@ -61,7 +61,7 @@ export function PlaybookPage() {
         </div>
 
         <p style={{ marginTop: 0 }}><b>目標</b>　{selected.goal}</p>
-        <p style={{ color: 'var(--text-sub)' }}>{selected.summary}</p>
+        <p style={{ color: 'var(--app-text-sub)' }}>{selected.summary}</p>
 
         <h3 className="guide-h">着手順</h3>
         <ol className="guide-steps">
@@ -94,7 +94,7 @@ export function PlaybookPage() {
         <h3 className="guide-h">詳しい手順</h3>
         {full && full.phase === selected.phase
           ? <Markdown source={full.body || ''} />
-          : <p style={{ color: 'var(--text-muted)' }}>読み込んでいます…</p>}
+          : <p style={{ color: 'var(--app-text-muted)' }}>読み込んでいます…</p>}
 
         <p className="doc-path" style={{ marginTop: 'var(--sp-4)' }}>knowledge/playbook/{selected.slug}.md</p>
       </article>

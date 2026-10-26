@@ -4,13 +4,9 @@ import {
   parseVector, buildVector31, buildVector40, score31, severityFromScore,
 } from '../../shared/cvss.js'
 import type { MetricDef } from '../../shared/cvss.js'
+import type { SeverityKey } from '../types'
+import { SeverityPill } from './Severity'
 
-const SEV_COLOR: Record<string, string> = {
-  critical: '#890101', high: '#ec0000', medium: '#cd820a', low: '#264af4', info: '#949497',
-}
-const SEV_JA: Record<string, string> = {
-  critical: '緊急', high: '重要', medium: '警告', low: '注意', info: 'なし',
-}
 
 interface Props {
   initialVector?: string
@@ -33,11 +29,11 @@ export function CvssCalculator({ initialVector = '', onApply, onClose }: Props) 
   const group = (title: string, defs: MetricDef[], note?: string) => (
     <section style={{ marginBottom: 'var(--sp-4)' }}>
       <h3 style={{ fontSize: 15, marginBottom: 'var(--sp-2)' }}>{title}</h3>
-      {note && <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 var(--sp-2)' }}>{note}</p>}
+      {note && <p style={{ fontSize: 14, color: 'var(--app-text-muted)', margin: '0 0 var(--sp-2)' }}>{note}</p>}
       <div style={{ display: 'grid', gap: 'var(--sp-2)' }}>
         {defs.map((d) => (
           <div key={d.id} style={{ display: 'grid', gridTemplateColumns: '240px minmax(0,1fr)', gap: 'var(--sp-2)', alignItems: 'center' }}>
-            <span style={{ fontSize: 14, color: 'var(--text-sub)' }}>{d.label}</span>
+            <span style={{ fontSize: 14, color: 'var(--app-text-sub)' }}>{d.label}</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {d.options.map(([v, label]) => (
                 <button
@@ -68,23 +64,21 @@ export function CvssCalculator({ initialVector = '', onApply, onClose }: Props) 
         <>
           <div className="card" style={{ marginBottom: 'var(--sp-4)', display: 'flex', alignItems: 'center', gap: 'var(--sp-5)', flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>基本値</div>
+              <div style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>基本値</div>
               <div style={{ fontSize: 34, fontWeight: 700, lineHeight: 1.1 }}>{result ? result.base.toFixed(1) : '—'}</div>
             </div>
             <div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>現状値</div>
+              <div style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>現状値</div>
               <div style={{ fontSize: 24, fontWeight: 700 }}>{result ? result.temporal.toFixed(1) : '—'}</div>
             </div>
             <div>
-              <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>環境値</div>
+              <div style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>環境値</div>
               <div style={{ fontSize: 24, fontWeight: 700 }}>{result ? result.environmental.toFixed(1) : '—'}</div>
             </div>
             {sev && (
-              <span className="sev-pill" style={{ background: SEV_COLOR[sev] }}>
-                {sev.toUpperCase()}・{SEV_JA[sev]}
-              </span>
+              <SeverityPill value={sev as SeverityKey} />
             )}
-            <code style={{ fontSize: 13, color: 'var(--text-sub)', marginLeft: 'auto', wordBreak: 'break-all', maxWidth: 420 }}>
+            <code style={{ fontSize: 13, color: 'var(--app-text-sub)', marginLeft: 'auto', wordBreak: 'break-all', maxWidth: 420 }}>
               {vector31 || '基本評価の 8 項目をすべて選ぶとベクタが決まります'}
             </code>
           </div>

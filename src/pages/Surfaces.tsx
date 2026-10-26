@@ -4,8 +4,10 @@ import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Dialog } from '../components/Dialog'
 import { IconPlus } from '../components/Icons'
+import { execAvailable } from '../platform'
 import { NoEngagement } from './shared'
 import { PhaseGuide } from '../components/PhaseGuide'
+import { FilterBar } from '../components/FilterBar'
 
 const STATUSES = ['未調査', '調査中', '調査済', '対象外']
 
@@ -26,14 +28,23 @@ export function SurfacesPage() {
   const port = params.get('port')
   const tech = params.get('tech')
   const kind = params.get('kind')
+  const q = params.get('q') || ''
+  const status = params.get('status')
 
   const rows = useMemo(() => {
     let list = data ?? []
     if (port) list = list.filter((s) => String(s.port ?? '') === port)
     if (tech) list = list.filter((s) => s.product === tech || s.tech.includes(tech))
     if (kind) list = list.filter((s) => s.kind === kind)
+    // URL の status には、ファイルに保存されている値（日本語）をそのまま入れます。
+    if (status) list = list.filter((s) => s.status === status)
+    const needle = q.trim().toLowerCase()
+    if (needle) {
+      list = list.filter((s) =>
+        [s.value, s.id, s.product, ...s.tech, ...s.discovered_by].some((v) => String(v ?? '').toLowerCase().includes(needle)))
+    }
     return list
-  }, [data, port, tech, kind])
+  }, [data, port, tech, kind, status, q])
 
   if (!current) return <NoEngagement />
 
@@ -41,7 +52,7 @@ export function SurfacesPage() {
     const next = new URLSearchParams(params)
     if (value === null) next.delete(key)
     else next.set(key, value)
-    setParams(next)
+    setParams(next, { replace: key === 'q' })
   }
 
   return (
@@ -59,9 +70,19 @@ export function SurfacesPage() {
 
       <PhaseGuide phase="recon" />
 
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
         サブドメイン・ホスト・ポート・エンドポイントを 1 件 1 ファイルで記録します。行を開くと、そのサーフェスの調査記録を編集できます。
       </p>
+
+      <FilterBar
+        label="サーフェスを絞り込む"
+        query={q}
+        onQuery={(v) => setFilter('q', v.trim() ? v : null)}
+        placeholder="値・ID・製品・技術・発見ツールで絞り込む"
+        chips={STATUSES.map((v) => ({ value: v, label: v }))}
+        selected={status}
+        onSelect={(v) => setFilter('status', v)}
+      />
 
       <div className="filters">
         <button className={`chip${!kind ? ' on' : ''}`} onClick={() => setFilter('kind', null)}>すべての種別</button>
@@ -87,6 +108,7 @@ export function SurfacesPage() {
                 <th scope="col">ID</th><th scope="col">種別</th><th scope="col">値</th>
                 <th scope="col">ポート</th><th scope="col">サービス</th><th scope="col">製品・技術</th>
                 <th scope="col">状態</th><th scope="col">発見ツール</th>
+                {execAvailable() && <th scope="col"><span className="visually-hidden">実行</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -100,6 +122,9 @@ export function SurfacesPage() {
                   <td>{[s.product, ...s.tech].filter(Boolean).join(' / ')}</td>
                   <td>{s.status}</td>
                   <td>{s.discovered_by.join(', ')}</td>
+                  {execAvailable() && (
+                    <td className="nowrap">{s.value && <Link className="btn quiet small" to={`/run?target=${encodeURIComponent(s.value)}`}>ツールを実行</Link>}</td>
+                  )}
                 </tr>
               ))}
             </tbody>

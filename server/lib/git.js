@@ -34,6 +34,43 @@ const GITIGNORE_EVIDENCE = `
 */evidence/
 `
 
+// アプリから実行したツールの生の出力と、実行の作業場所。伏せていない資格情報が入りうるため、証跡の扱いに関係なく追跡しません。
+const RAW_RULES = ['*/20-調査/取得データ/', '*/.secowl/run/']
+const GITIGNORE_RAW = `
+# ツールの生の出力と実行の作業場所（Cookie やトークンを伏せていません）
+${RAW_RULES.join('\n')}
+`
+
+function ignoreLines(cwd) {
+  try { return fs.readFileSync(path.join(cwd, '.gitignore'), 'utf8').split(/\r?\n/).map((l) => l.trim()) } catch { return null }
+}
+
+/** 書かれていない、追跡させないための行。.gitignore が無ければすべて。 */
+function missingRules(cwd) {
+  const lines = ignoreLines(cwd)
+  return lines ? RAW_RULES.filter((r) => !lines.includes(r)) : [...RAW_RULES]
+}
+
+/**
+ * .gitignore が無ければ作り、あれば足りない行だけを末尾に足します（利用者が書いた行は触りません）。
+ * 以前のバージョンで作った保存先や、自分で git init した保存先でも、生の出力が git add -A に乗らないようにするためです。
+ */
+function ensureIgnore(cwd, { trackEvidence = false } = {}) {
+  // .gitignore を読めない・書けない保存先でも、init と commit 自体は進められるようにします。
+  // 足りない行は status の ignoreMissing に出るので、設定画面から直せます。
+  try {
+    const file = path.join(cwd, '.gitignore')
+    if (!fs.existsSync(file)) {
+      fs.writeFileSync(file, GITIGNORE_BASE + (trackEvidence ? '' : GITIGNORE_EVIDENCE) + GITIGNORE_RAW, 'utf8')
+      return
+    }
+    const missing = missingRules(cwd)
+    if (!missing.length) return
+    const cur = fs.readFileSync(file, 'utf8')
+    fs.appendFileSync(file, `${cur === '' || cur.endsWith('\n') ? '' : '\n'}\n# ツールの生の出力と実行の作業場所（SecOwl が追記）\n${missing.join('\n')}\n`, 'utf8')
+  } catch { /* 追記できなくても Git の操作は続けます */ }
+}
+
 export async function status() {
   const cwd = dataRoot()
   if (!fs.existsSync(path.join(cwd, '.git'))) {
@@ -47,22 +84,24 @@ export async function status() {
     .split('\n')
     .filter(Boolean)
     .map((line) => ({ code: line.slice(0, 2).trim() || '??', path: line.slice(3).replace(/^"|"$/g, '') }))
+  // すでに追跡されている生の出力は、.gitignore を直しても追跡されたまま（履歴からは外さないと残る）
+  const tracked = await git(['ls-files'], cwd).catch(() => '')
+  const rawTracked = tracked.split('\n').filter((f) => /(^|\/)20-調査\/取得データ\/|(^|\/)\.secowl\/run\//.test(f)).length
   return {
     isRepo: true,
     root: cwd,
     branch: branchOut.trim(),
     changes,
     hasGitignore: fs.existsSync(path.join(cwd, '.gitignore')),
+    ignoreMissing: missingRules(cwd),
+    rawTracked,
   }
 }
 
 export async function init({ trackEvidence = false } = {}) {
   const cwd = dataRoot()
   if (!fs.existsSync(path.join(cwd, '.git'))) await git(['init', '-b', 'main'], cwd)
-  const file = path.join(cwd, '.gitignore')
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, GITIGNORE_BASE + (trackEvidence ? '' : GITIGNORE_EVIDENCE), 'utf8')
-  }
+  ensureIgnore(cwd, { trackEvidence })
   return status()
 }
 
@@ -70,6 +109,7 @@ export async function commit({ message }) {
   const cwd = dataRoot()
   if (!message || !message.trim()) throw new Error('コミットメッセージを入力してください')
   if (!fs.existsSync(path.join(cwd, '.git'))) throw new Error('保存先がまだ Git リポジトリではありません')
+  ensureIgnore(cwd) // 生の出力を add -A に乗せないため、足りない行はここでも足す
   await git(['add', '-A'], cwd)
   const staged = await git(['diff', '--cached', '--name-only'], cwd)
   if (!staged.trim()) throw new Error('コミットする変更がありません')

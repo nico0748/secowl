@@ -1,13 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { marked } from 'marked'
+import { md } from '../../shared/markdown.js'
 import {
   AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, Packer, Paragraph,
   ShadingType, Table, TableCell, TableRow, TextRun, WidthType,
 } from 'docx'
 import { dataRoot } from './config.js'
-import { getEngagement, listFindings, readDoc, docPaths } from './store.js'
+import { getEngagement, readDoc, docPaths } from './store.js'
+import { reportableFindings } from './reportable.js'
 import { SEVERITIES, SEVERITY_META } from './severity.js'
+import { EXPORT_COLORS, SEV_GLYPH } from './export-colors.js'
+
+// docx の色指定は # なしの 16 進。書き出しは常にライト（export-colors.js）。
+const X = Object.fromEntries(Object.entries(EXPORT_COLORS).map(([k, v]) => [k, v.slice(1)]))
 
 const FONT = 'Yu Gothic'
 const MONO = 'Consolas'
@@ -41,12 +46,12 @@ function inline(tokens, opts = {}) {
         case 'strong': walk(t.tokens, { ...state, bold: true }); break
         case 'em': walk(t.tokens, { ...state, italics: true }); break
         case 'del': walk(t.tokens, { ...state, strike: true }); break
-        case 'link': walk(t.tokens, { ...state, color: '0017C1' }); break
+        case 'link': walk(t.tokens, { ...state, color: X.primary }); break
         case 'codespan':
-          runs.push(new TextRun({ text: t.text, font: MONO, size: 19, shading: { type: ShadingType.CLEAR, fill: 'F1F1F4' }, ...state }))
+          runs.push(new TextRun({ text: t.text, font: MONO, size: 19, shading: { type: ShadingType.CLEAR, fill: X.cardSub }, ...state }))
           break
         case 'br': runs.push(new TextRun({ text: '', break: 1 })); break
-        case 'image': runs.push(new TextRun({ text: `［画像: ${t.text || t.href}］`, italics: true, color: '626264' })); break
+        case 'image': runs.push(new TextRun({ text: `［画像: ${t.text || t.href}］`, italics: true, color: X.textSub })); break
         default:
           if (t.tokens) walk(t.tokens, state)
           else runs.push(new TextRun({ text: t.text ?? t.raw ?? '', font: FONT, size: opts.size ?? 21, ...state }))
@@ -61,10 +66,10 @@ function codeParagraphs(text) {
   return text.split('\n').map((line, i, arr) =>
     new Paragraph({
       children: [new TextRun({ text: line || ' ', font: MONO, size: 18 })],
-      shading: { type: ShadingType.CLEAR, fill: 'F8F8FB' },
+      shading: { type: ShadingType.CLEAR, fill: X.cardSub },
       spacing: { before: i === 0 ? 120 : 0, after: i === arr.length - 1 ? 120 : 0 },
       border: {
-        left: { style: BorderStyle.SINGLE, size: 12, color: 'D8D8DB', space: 6 },
+        left: { style: BorderStyle.SINGLE, size: 12, color: X.border, space: 6 },
       },
     }),
   )
@@ -74,13 +79,23 @@ function tableFrom(token) {
   const cell = (tokens, header) =>
     new TableCell({
       children: [new Paragraph({ children: inline(tokens, { size: 19 }).map((r) => r) })],
-      shading: header ? { type: ShadingType.CLEAR, fill: 'F1F1F4' } : undefined,
+      shading: header ? { type: ShadingType.CLEAR, fill: X.cardSub } : undefined,
     })
   const rows = [
     new TableRow({ tableHeader: true, children: token.header.map((h) => cell(h.tokens, true)) }),
     ...token.rows.map((r) => new TableRow({ children: r.map((c) => cell(c.tokens, false)) })),
   ]
-  return new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE } })
+  // 列の幅を中身の長さに合わせて配分します（短い値の列が 1 文字ずつ折り返さないように）。
+  const textLen = (t) => [...String(t ?? '')].reduce((n, ch) => n + (/[\u3000-\uffff]/.test(ch) ? 2 : 1), 0)
+  const cols = token.header.length
+  const weights = Array.from({ length: cols }, (_, i) => {
+    const longest = Math.max(textLen(token.header[i]?.text), ...token.rows.map((r) => textLen(r[i]?.text)))
+    return Math.min(Math.max(longest, 4), 40)
+  })
+  const total = weights.reduce((a, b) => a + b, 0) || 1
+  const TABLE_TWIPS = 9000
+  const columnWidths = weights.map((w) => Math.round((w / total) * TABLE_TWIPS))
+  return new Table({ rows, columnWidths, width: { size: 100, type: WidthType.PERCENTAGE } })
 }
 
 function imageParagraph(href, eid) {
@@ -147,7 +162,7 @@ function blocks(tokens, eid, depthOffset = 0) {
         }
         break
       case 'hr':
-        out.push(new Paragraph({ text: '', border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'D8D8DB', space: 1 } }, spacing: { after: 160 } }))
+        out.push(new Paragraph({ text: '', border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: X.border, space: 1 } }, spacing: { after: 160 } }))
         break
       case 'space':
       case 'html':
@@ -165,13 +180,13 @@ export async function reportDocx(eid) {
   const eng = getEngagement(eid)
   if (!eng) throw new Error('診断対象が見つかりません')
   const report = readDoc(docPaths(eid).report)
-  const findings = listFindings(eid)
+  const { findings } = reportableFindings(eid, { includeDraft: false })
   const counts = Object.fromEntries(SEVERITIES.map((k) => [k, findings.filter((f) => f.severity === k).length]))
   const highest = SEVERITIES.find((k) => counts[k] > 0) || 'info'
 
   const cover = [
     new Paragraph({ text: '', spacing: { after: 2400 } }),
-    new Paragraph({ children: [new TextRun({ text: '脆弱性診断報告書', font: FONT, size: 24, color: '626264' })], alignment: AlignmentType.CENTER }),
+    new Paragraph({ children: [new TextRun({ text: '脆弱性診断報告書', font: FONT, size: 24, color: X.textSub })], alignment: AlignmentType.CENTER }),
     new Paragraph({ children: [new TextRun({ text: eng.name, font: FONT, size: 48, bold: true })], alignment: AlignmentType.CENTER, spacing: { after: 600 } }),
     new Table({
       width: { size: 80, type: WidthType.PERCENTAGE },
@@ -179,11 +194,11 @@ export async function reportDocx(eid) {
         ['提出先', eng.client || ''],
         ['診断対象', eng.target_system || ''],
         ['診断期間', `${eng.period_from} 〜 ${eng.period_to}`],
-        ['総合リスク', SEVERITY_META[highest].ja],
+        ['総合リスク', `${SEV_GLYPH[highest]} ${SEVERITY_META[highest].ja}`],
         ['発見事項件数', `${findings.length} 件`],
       ].map(([k, v]) => new TableRow({
         children: [
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: k, font: FONT, size: 20, bold: true })] })], shading: { type: ShadingType.CLEAR, fill: 'F1F1F4' } }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: k, font: FONT, size: 20, bold: true })] })], shading: { type: ShadingType.CLEAR, fill: X.cardSub } }),
           new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v, font: FONT, size: 20 })] })] }),
         ],
       })),
@@ -191,12 +206,13 @@ export async function reportDocx(eid) {
     new Paragraph({
       children: [new TextRun({ text: '本書は機密文書です。取扱いには十分に注意してください。', font: FONT, size: 20 })],
       spacing: { before: 600 },
-      shading: { type: ShadingType.CLEAR, fill: 'F3EEE5' },
+      // 状態のお知らせは面を塗らず、左の線で示す（アプリの .banner と同じ規則）
+      border: { left: { style: BorderStyle.SINGLE, size: 24, color: X.warning, space: 8 } },
     }),
     new Paragraph({ text: '', pageBreakBefore: true }),
   ]
 
-  const body = blocks(marked.lexer(report.body.replace(/^#\s+.*$/m, '')), eid)
+  const body = blocks(md.lexer(report.body.replace(/^#\s+.*$/m, '')), eid)
 
   const doc = new Document({
     creator: 'SecOwl',
@@ -204,10 +220,10 @@ export async function reportDocx(eid) {
     styles: {
       default: {
         document: { run: { font: FONT, size: 21 } },
-        heading1: { run: { font: FONT, size: 32, bold: true, color: '1A1A1C' } },
-        heading2: { run: { font: FONT, size: 26, bold: true, color: '1A1A1C' } },
-        heading3: { run: { font: FONT, size: 23, bold: true, color: '1A1A1C' } },
-        heading4: { run: { font: FONT, size: 21, bold: true, color: '414143' } },
+        heading1: { run: { font: FONT, size: 32, bold: true, color: X.text } },
+        heading2: { run: { font: FONT, size: 26, bold: true, color: X.text } },
+        heading3: { run: { font: FONT, size: 23, bold: true, color: X.text } },
+        heading4: { run: { font: FONT, size: 21, bold: true, color: X.textSub } },
       },
     },
     sections: [{ properties: {}, children: [...cover, ...body] }],

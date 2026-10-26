@@ -7,7 +7,12 @@
     <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
     <link rel="icon" href="/favicon-64.png" sizes="64x64" type="image/png" />
     <link rel="apple-touch-icon" href="/favicon-180.png" />
-    <meta name="theme-color" content="#0017c1" />
+    <!-- 地の色（--app-bg）。値は src/styles/tokens.css と同じ。手動のテーマ選択は src/theme.ts が両方を書き換えます -->
+    <meta name="theme-color" content="#EFEDF1" media="(prefers-color-scheme: light)" data-scheme="light" data-color="#EFEDF1" />
+    <meta name="theme-color" content="#0D0E11" media="(prefers-color-scheme: dark)" data-scheme="dark" data-color="#0D0E11" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- 最初の描画の前にテーマを決めます（public/theme-init.js）。CSP の script-src 'self' のため外部ファイルにしています -->
+    <script src="/theme-init.js"></script>
     <title>SecOwl — 脆弱性調査支援</title>
   </head>
   <body>

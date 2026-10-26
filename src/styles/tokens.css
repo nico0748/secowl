@@ -1,76 +1,25 @@
 /*
- * デザイントークン
- * 配色はデジタル庁デザインシステム（DADS）のプリミティブカラーに合わせています。
- * Sumi / Sea / Forest / Wood / Sun の 5 系統を使います。
+ * SecOwl デザイントークン
+ * Material Design 3 (HCT / spec 2021) ベース。シード #0021C8（ロゴの群青）。
+ * 生成: scripts/gen-tokens/gen_tokens.py（materialyoucolor 3.0.4）。手で値を変えないこと。
+ * 書き出し（server/lib/export-colors.js）は Light の値を写して使う。値を変えたら合わせること。
+ *
+ * 層:
+ *   --md-sys-color-*  MD3 のカラーロール（MD3 の意味どおり）
+ *   --app-*           SecOwl のアプリ層。画面はこれだけを参照する
+ *
+ * MD3 からの意図的な逸脱（1 行で）:
+ *   面の段をモードごとに割り当てる（Light: 地 T94 / カード T100、Dark: 地 T4 / カード T12 / ダイアログ T22）。
+ *   MD3 の container 段は「強調度」の名前で、Light はカードを白い紙に、Dark はカードを地より明るく保つため。
+ *   その他: 深刻度はカスタムカラー（harmonize + CVD 検証済み）、状態色の塗り container は使わない（線 + アイコン）。
+ *
+ * テーマ: 既定は OS 設定に追従。<html data-theme="light|dark"> で手動固定。
  */
+
 :root {
-  /* Sumi — 無彩色 */
-  --sumi-1200: #000000;
-  --sumi-1000: #111111;
-  --sumi-900: #1a1a1c;
-  --sumi-800: #414143;
-  --sumi-700: #626264;
-  --sumi-600: #7f7f78;
-  --sumi-500: #949497;
-  --sumi-400: #b4b4b7;
-  --sumi-300: #d8d8db;
-  --sumi-200: #e8e8eb;
-  --sumi-100: #f1f1f4;
-  --sumi-50: #f8f8fb;
+  color-scheme: light;
 
-  /* Sea — 基調色 */
-  --sea-1000: #000071;
-  --sea-900: #000082;
-  --sea-800: #0017c1;
-  --sea-700: #0031db;
-  --sea-600: #1a3ee8;
-  --sea-500: #264af4;
-  --sea-300: #7096f8;
-  --sea-100: #c5d7fb;
-  --sea-50: #e8f1fe;
-
-  /* Forest / Wood / Sun — 状態色 */
-  --forest-800: #197a4b;
-  --forest-600: #259d63;
-  --forest-50: #e6f5ec;
-  --wood-700: #c87504;
-  --wood-600: #cd820a;
-  --wood-50: #f3eee5;
-  --sun-1100: #890101;
-  --sun-800: #ec0000;
-  --sun-50: #ffe7e6;
-
-  /* セマンティック */
-  --bg: var(--sumi-100);
-  --surface: #ffffff;
-  --surface-sub: var(--sumi-50);
-  --border: var(--sumi-300);
-  --border-strong: var(--sumi-400);
-  --text: var(--sumi-900);
-  --text-sub: var(--sumi-700);
-  --text-muted: var(--sumi-600);
-  --primary: var(--sea-800);
-  --primary-hover: var(--sea-1000);
-  --primary-bg: var(--sea-50);
-  --focus-ring: var(--sea-700);
-
-  /* 深刻度（CVSS 区分に対応する状態色） */
-  --sev-critical: #890101;
-  --sev-high: #ec0000;
-  --sev-medium: #cd820a;
-  --sev-low: #264af4;
-  --sev-info: #949497;
-
-  /* カテゴリ配色（技術スタックの内訳に使う） */
-  --cat-1: #2a78d6;
-  --cat-2: #eb6834;
-  --cat-3: #1baf7a;
-  --cat-4: #eda100;
-  --cat-5: #e87ba4;
-  --cat-6: #4a3aa7;
-  --cat-other: var(--sumi-400);
-
-  /* 余白は 8px を基準にします */
+  /* ---- 余白・角丸（変更なし） ---- */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
@@ -79,5 +28,369 @@
   --sp-6: 32px;
   --radius: 8px;
   --radius-sm: 6px;
-  --shadow: 0 1px 2px rgba(26, 26, 28, 0.06), 0 1px 6px rgba(26, 26, 28, 0.04);
+
+  /* ---- 固定色（テーマに追従しない） ---- */
+  --app-brand: #0021C8;            /* ロゴタイル。PNG と同じ値 */
+  --app-on-brand: #FFFFFF;
+  --app-mask-fill: #1A1A1C;        /* 墨消し。証跡画像に焼き込む値なので両モード共通（従来の値のまま） */
+  --app-canvas-paper: #FFFFFF;     /* マスク編集・レポートプレビューの下地 */
+  --app-icon-plate: #FFFFFF;       /* ツールアイコンの下地 */
+
+  /* ---- MD3 state layer ---- */
+  --md-state-hover: 8%;
+  --md-state-focus: 10%;
+  --md-state-pressed: 10%;
+  --md-state-dragged: 16%;
+  --md-state-disabled-content: 38%;
+  --md-state-disabled-container: 12%;
+
+  /* ---- 標高（影は浮く要素だけ） ---- */
+  --app-elev-0: none;
+  --app-elev-1: 0 1px 2px 0 rgb(0 0 0 / .30), 0 1px 3px 1px rgb(0 0 0 / .15);
+  --app-elev-2: 0 1px 2px 0 rgb(0 0 0 / .30), 0 2px 6px 2px rgb(0 0 0 / .15);
+  --app-elev-3: 0 1px 3px 0 rgb(0 0 0 / .30), 0 4px 8px 3px rgb(0 0 0 / .15);
+
+  /* ---- Light 値 ---- */
+  --md-sys-color-primary: #3158BA;
+  --md-sys-color-on-primary: #FFFFFF;
+  --md-sys-color-primary-container: #DBE1FF;
+  --md-sys-color-on-primary-container: #0D3FA1;
+  --md-sys-color-inverse-primary: #B4C5FF;
+  --md-sys-color-primary-fixed: #DBE1FF;
+  --md-sys-color-primary-fixed-dim: #B4C5FF;
+  --md-sys-color-on-primary-fixed: #00174A;
+  --md-sys-color-on-primary-fixed-variant: #0D3FA1;
+  --md-sys-color-secondary: #585E72;
+  --md-sys-color-on-secondary: #FFFFFF;
+  --md-sys-color-secondary-container: #DDE1F9;
+  --md-sys-color-on-secondary-container: #414659;
+  --md-sys-color-secondary-fixed: #DDE1F9;
+  --md-sys-color-secondary-fixed-dim: #C1C6DD;
+  --md-sys-color-on-secondary-fixed: #151B2C;
+  --md-sys-color-on-secondary-fixed-variant: #414659;
+  --md-sys-color-tertiary: #6E5676;
+  --md-sys-color-on-tertiary: #FFFFFF;
+  --md-sys-color-tertiary-container: #F7D8FF;
+  --md-sys-color-on-tertiary-container: #553F5D;
+  --md-sys-color-tertiary-fixed: #F7D8FF;
+  --md-sys-color-tertiary-fixed-dim: #DABDE2;
+  --md-sys-color-on-tertiary-fixed: #27132F;
+  --md-sys-color-on-tertiary-fixed-variant: #553F5D;
+  --md-sys-color-error: #BA1A1A;
+  --md-sys-color-on-error: #FFFFFF;
+  --md-sys-color-error-container: #FFDAD6;
+  --md-sys-color-on-error-container: #93000A;
+  --md-sys-color-surface: #FBF8FD;
+  --md-sys-color-surface-dim: #DBD9DD;
+  --md-sys-color-surface-bright: #FBF8FD;
+  --md-sys-color-surface-container-lowest: #FFFFFF;
+  --md-sys-color-surface-container-low: #F5F3F7;
+  --md-sys-color-surface-container: #EFEDF1;
+  --md-sys-color-surface-container-high: #E9E7EC;
+  --md-sys-color-surface-container-highest: #E4E2E6;
+  --md-sys-color-on-surface: #1B1B1F;
+  --md-sys-color-surface-variant: #E2E2EC;
+  --md-sys-color-on-surface-variant: #45464F;
+  --md-sys-color-outline: #757680;
+  --md-sys-color-outline-variant: #C5C6D0;
+  --md-sys-color-inverse-surface: #303034;
+  --md-sys-color-inverse-on-surface: #F2F0F4;
+  --md-sys-color-surface-tint: #3158BA;
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+
+  /* app surfaces (意図的な MD3 からの逸脱: §3.1) */
+  --app-bg: #EFEDF1;
+  --app-card: #FFFFFF;
+  --app-card-sub: #F5F3F7;
+  --app-overlay: #FFFFFF;
+  --app-text-muted: #696A73;   /* neutral-variant T45 */
+
+  --app-sev-critical: #75003C;
+  --app-on-sev-critical: #FFFFFF;
+  --app-sev-critical-container: #EF679A;
+  --app-on-sev-critical-container: #3E001D;
+  --app-sev-critical-border: #75003C;
+  --app-sev-critical-text: #C3216D;
+  --app-sev-high: #B52700;
+  --app-on-sev-high: #FFFFFF;
+  --app-sev-high-container: #FF9379;
+  --app-on-sev-high-container: #3D0700;
+  --app-sev-high-border: #B52700;
+  --app-sev-high-text: #C3310B;
+  --app-sev-medium: #D87900;
+  --app-on-sev-medium: #2E1500;
+  --app-sev-medium-container: #FFBF89;
+  --app-on-sev-medium-container: #2E1500;
+  --app-sev-medium-border: #D87900;
+  --app-sev-medium-text: #9D5600;
+  --app-sev-low: #00627A;
+  --app-on-sev-low: #FFFFFF;
+  --app-sev-low-container: #B9EAFF;
+  --app-on-sev-low-container: #001F29;
+  --app-sev-low-border: #00627A;
+  --app-sev-low-text: #00718E;
+  --app-sev-info: #87868A;
+  --app-on-sev-info: #1B1B1F;
+  --app-sev-info-container: transparent;
+  --app-on-sev-info-container: #1B1B1F;
+  --app-sev-info-border: #757680;
+  --app-sev-info-text: #68686B;
+
+  --app-status-error: #BA1A1A;
+  --app-status-warning: #9D6E00;
+  --app-status-success: #006D42;
+  --app-status-info: #3158BA;
+
+  --app-cat-1: #3B8D20;
+  --app-cat-2: #7C3EBA;
+  --app-cat-3: #00959F;
+  --app-cat-4: #5D6300;
+  --app-cat-5: #B267A9;
+  --app-cat-other: #5D5E67;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --md-sys-color-primary: #B4C5FF;
+    --md-sys-color-on-primary: #002A77;
+    --md-sys-color-primary-container: #0D3FA1;
+    --md-sys-color-on-primary-container: #DBE1FF;
+    --md-sys-color-inverse-primary: #3158BA;
+    --md-sys-color-primary-fixed: #DBE1FF;
+    --md-sys-color-primary-fixed-dim: #B4C5FF;
+    --md-sys-color-on-primary-fixed: #00174A;
+    --md-sys-color-on-primary-fixed-variant: #0D3FA1;
+    --md-sys-color-secondary: #C1C6DD;
+    --md-sys-color-on-secondary: #2A3042;
+    --md-sys-color-secondary-container: #414659;
+    --md-sys-color-on-secondary-container: #DDE1F9;
+    --md-sys-color-secondary-fixed: #DDE1F9;
+    --md-sys-color-secondary-fixed-dim: #C1C6DD;
+    --md-sys-color-on-secondary-fixed: #151B2C;
+    --md-sys-color-on-secondary-fixed-variant: #414659;
+    --md-sys-color-tertiary: #DABDE2;
+    --md-sys-color-on-tertiary: #3E2846;
+    --md-sys-color-tertiary-container: #553F5D;
+    --md-sys-color-on-tertiary-container: #F7D8FF;
+    --md-sys-color-tertiary-fixed: #F7D8FF;
+    --md-sys-color-tertiary-fixed-dim: #DABDE2;
+    --md-sys-color-on-tertiary-fixed: #27132F;
+    --md-sys-color-on-tertiary-fixed-variant: #553F5D;
+    --md-sys-color-error: #FFB4AB;
+    --md-sys-color-on-error: #690005;
+    --md-sys-color-error-container: #93000A;
+    --md-sys-color-on-error-container: #FFDAD6;
+    --md-sys-color-surface: #131316;
+    --md-sys-color-surface-dim: #131316;
+    --md-sys-color-surface-bright: #39393C;
+    --md-sys-color-surface-container-lowest: #0D0E11;
+    --md-sys-color-surface-container-low: #1B1B1F;
+    --md-sys-color-surface-container: #1F1F23;
+    --md-sys-color-surface-container-high: #292A2D;
+    --md-sys-color-surface-container-highest: #343438;
+    --md-sys-color-on-surface: #E4E2E6;
+    --md-sys-color-surface-variant: #45464F;
+    --md-sys-color-on-surface-variant: #C5C6D0;
+    --md-sys-color-outline: #8F909A;
+    --md-sys-color-outline-variant: #45464F;
+    --md-sys-color-inverse-surface: #E4E2E6;
+    --md-sys-color-inverse-on-surface: #303034;
+    --md-sys-color-surface-tint: #B4C5FF;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-scrim: #000000;
+
+    /* app surfaces (意図的な MD3 からの逸脱: §3.1) */
+    --app-bg: #0D0E11;
+    --app-card: #1F1F23;
+    --app-card-sub: #292A2D;
+    --app-overlay: #343438;
+    --app-text-muted: #9C9DA7;   /* neutral-variant T65 */
+
+    --app-sev-critical: #F8357B;
+    --app-on-sev-critical: #3F0018;
+    --app-sev-critical-container: #762846;
+    --app-on-sev-critical-container: #FFD9DF;
+    --app-sev-critical-border: #F8357B;
+    --app-sev-critical-text: #FF7198;
+    --app-sev-high: #FF9472;
+    --app-on-sev-high: #3A0B00;
+    --app-sev-high-container: #794E43;
+    --app-on-sev-high-container: #FFDBD0;
+    --app-sev-high-border: #FF9472;
+    --app-sev-high-text: #FF784C;
+    --app-sev-medium: #FFCB27;
+    --app-on-sev-medium: #241A00;
+    --app-sev-medium-container: #796425;
+    --app-on-sev-medium-container: #FFEFCF;
+    --app-sev-medium-border: #FFCB27;
+    --app-sev-medium-text: #C69B00;
+    --app-sev-low: #00A2D1;
+    --app-on-sev-low: #001F2A;
+    --app-sev-low-container: #135369;
+    --app-on-sev-low-container: #BFE9FF;
+    --app-sev-low-border: #00A2D1;
+    --app-sev-low-text: #00ADDF;
+    --app-sev-info: #BCBBBF;
+    --app-on-sev-info: #1B1B1F;
+    --app-sev-info-container: transparent;
+    --app-on-sev-info-container: #E4E2E6;
+    --app-sev-info-border: #BCBBBF;
+    --app-sev-info-text: #A1A0A4;
+
+    --app-status-error: #FFB4AB;
+    --app-status-warning: #D99200;
+    --app-status-success: #77DAA1;
+    --app-status-info: #B4C5FF;
+
+    --app-cat-1: #55A839;
+    --app-cat-2: #AC6EEB;
+    --app-cat-3: #00848D;
+    --app-cat-4: #6C7200;
+    --app-cat-5: #BE71B4;
+    --app-cat-other: #70717B;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --md-sys-color-primary: #B4C5FF;
+  --md-sys-color-on-primary: #002A77;
+  --md-sys-color-primary-container: #0D3FA1;
+  --md-sys-color-on-primary-container: #DBE1FF;
+  --md-sys-color-inverse-primary: #3158BA;
+  --md-sys-color-primary-fixed: #DBE1FF;
+  --md-sys-color-primary-fixed-dim: #B4C5FF;
+  --md-sys-color-on-primary-fixed: #00174A;
+  --md-sys-color-on-primary-fixed-variant: #0D3FA1;
+  --md-sys-color-secondary: #C1C6DD;
+  --md-sys-color-on-secondary: #2A3042;
+  --md-sys-color-secondary-container: #414659;
+  --md-sys-color-on-secondary-container: #DDE1F9;
+  --md-sys-color-secondary-fixed: #DDE1F9;
+  --md-sys-color-secondary-fixed-dim: #C1C6DD;
+  --md-sys-color-on-secondary-fixed: #151B2C;
+  --md-sys-color-on-secondary-fixed-variant: #414659;
+  --md-sys-color-tertiary: #DABDE2;
+  --md-sys-color-on-tertiary: #3E2846;
+  --md-sys-color-tertiary-container: #553F5D;
+  --md-sys-color-on-tertiary-container: #F7D8FF;
+  --md-sys-color-tertiary-fixed: #F7D8FF;
+  --md-sys-color-tertiary-fixed-dim: #DABDE2;
+  --md-sys-color-on-tertiary-fixed: #27132F;
+  --md-sys-color-on-tertiary-fixed-variant: #553F5D;
+  --md-sys-color-error: #FFB4AB;
+  --md-sys-color-on-error: #690005;
+  --md-sys-color-error-container: #93000A;
+  --md-sys-color-on-error-container: #FFDAD6;
+  --md-sys-color-surface: #131316;
+  --md-sys-color-surface-dim: #131316;
+  --md-sys-color-surface-bright: #39393C;
+  --md-sys-color-surface-container-lowest: #0D0E11;
+  --md-sys-color-surface-container-low: #1B1B1F;
+  --md-sys-color-surface-container: #1F1F23;
+  --md-sys-color-surface-container-high: #292A2D;
+  --md-sys-color-surface-container-highest: #343438;
+  --md-sys-color-on-surface: #E4E2E6;
+  --md-sys-color-surface-variant: #45464F;
+  --md-sys-color-on-surface-variant: #C5C6D0;
+  --md-sys-color-outline: #8F909A;
+  --md-sys-color-outline-variant: #45464F;
+  --md-sys-color-inverse-surface: #E4E2E6;
+  --md-sys-color-inverse-on-surface: #303034;
+  --md-sys-color-surface-tint: #B4C5FF;
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-scrim: #000000;
+
+  /* app surfaces (意図的な MD3 からの逸脱: §3.1) */
+  --app-bg: #0D0E11;
+  --app-card: #1F1F23;
+  --app-card-sub: #292A2D;
+  --app-overlay: #343438;
+  --app-text-muted: #9C9DA7;   /* neutral-variant T65 */
+
+  --app-sev-critical: #F8357B;
+  --app-on-sev-critical: #3F0018;
+  --app-sev-critical-container: #762846;
+  --app-on-sev-critical-container: #FFD9DF;
+  --app-sev-critical-border: #F8357B;
+  --app-sev-critical-text: #FF7198;
+  --app-sev-high: #FF9472;
+  --app-on-sev-high: #3A0B00;
+  --app-sev-high-container: #794E43;
+  --app-on-sev-high-container: #FFDBD0;
+  --app-sev-high-border: #FF9472;
+  --app-sev-high-text: #FF784C;
+  --app-sev-medium: #FFCB27;
+  --app-on-sev-medium: #241A00;
+  --app-sev-medium-container: #796425;
+  --app-on-sev-medium-container: #FFEFCF;
+  --app-sev-medium-border: #FFCB27;
+  --app-sev-medium-text: #C69B00;
+  --app-sev-low: #00A2D1;
+  --app-on-sev-low: #001F2A;
+  --app-sev-low-container: #135369;
+  --app-on-sev-low-container: #BFE9FF;
+  --app-sev-low-border: #00A2D1;
+  --app-sev-low-text: #00ADDF;
+  --app-sev-info: #BCBBBF;
+  --app-on-sev-info: #1B1B1F;
+  --app-sev-info-container: transparent;
+  --app-on-sev-info-container: #E4E2E6;
+  --app-sev-info-border: #BCBBBF;
+  --app-sev-info-text: #A1A0A4;
+
+  --app-status-error: #FFB4AB;
+  --app-status-warning: #D99200;
+  --app-status-success: #77DAA1;
+  --app-status-info: #B4C5FF;
+
+  --app-cat-1: #55A839;
+  --app-cat-2: #AC6EEB;
+  --app-cat-3: #00848D;
+  --app-cat-4: #6C7200;
+  --app-cat-5: #BE71B4;
+  --app-cat-other: #70717B;
+}
+
+/* ---- モード共通の参照（値は上のブロックで切り替わる） ---- */
+:root {
+  /* app: 面・線・文字 */
+  --app-divider: var(--md-sys-color-outline-variant);
+  --app-border: var(--md-sys-color-outline-variant);          /* 装飾的な輪郭（カード） */
+  --app-border-strong: var(--md-sys-color-outline);           /* 操作部品の境界（入力欄・未選択チップ） */
+  --app-text: var(--md-sys-color-on-surface);
+  --app-text-sub: var(--md-sys-color-on-surface-variant);
+
+  /* app: 主色・選択・現在地・フォーカス */
+  --app-primary: var(--md-sys-color-primary);
+  --app-on-primary: var(--md-sys-color-on-primary);
+  --app-selected-bg: var(--md-sys-color-secondary-container);
+  --app-selected-text: var(--md-sys-color-on-secondary-container);
+  --app-current-bg: var(--md-sys-color-primary-container);
+  --app-current-text: var(--md-sys-color-on-primary-container);
+  --app-current-bar: var(--md-sys-color-primary);
+  --app-focus-ring: var(--md-sys-color-primary);
+  --app-focus-ring-width: 3px;
+  --app-focus-ring-offset: 2px;
+
+  /* app: state layer（内容色を重ねる） */
+  --app-hover-layer: color-mix(in srgb, var(--md-sys-color-on-surface) var(--md-state-hover), transparent);
+  --app-pressed-layer: color-mix(in srgb, var(--md-sys-color-on-surface) var(--md-state-pressed), transparent);
+  --app-primary-hover: color-mix(in srgb, var(--md-sys-color-on-primary) var(--md-state-hover), var(--md-sys-color-primary));
+  --app-primary-pressed: color-mix(in srgb, var(--md-sys-color-on-primary) var(--md-state-pressed), var(--md-sys-color-primary));
+  --app-selected-hover-layer: color-mix(in srgb, var(--md-sys-color-on-secondary-container) var(--md-state-hover), transparent);
+  --app-disabled-text: color-mix(in srgb, var(--md-sys-color-on-surface) var(--md-state-disabled-content), transparent);
+  --app-disabled-bg: color-mix(in srgb, var(--md-sys-color-on-surface) var(--md-state-disabled-container), transparent);
+  --app-scrim: color-mix(in srgb, var(--md-sys-color-scrim) 32%, transparent);
+
+  /* app: 状態色の面（塗り container は使わない。面 + 4px 線 + アイコン） */
+  --app-status-surface: var(--app-card);
+}
+
+/* 選択中の要素の中では補助文字も on-secondary-container にする（R1 批評 N3 の強制） */
+:where(.active, .on, .selected, [aria-selected="true"], [aria-current="page"]) {
+  --app-text-sub: var(--app-selected-text);
+  --app-text-muted: var(--app-selected-text);
 }

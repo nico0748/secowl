@@ -5,6 +5,24 @@ tags: [必修, ポートスキャン, サービス特定, OSS]
 url: https://nmap.org/
 license: NPSL（無償）
 phase: [recon, survey]
+commands:
+  - id: nmap-detail
+    label: ポートを指定して、サービスとバージョンを調べる（-sV -sC）
+    program: nmap
+    args: ["-sV", "-sC", "-p", "{{ports}}", "-oX", "{{out}}", "{{target}}"]
+    out: { format: nmap, ext: xml }
+    vars:
+      - { name: target, kind: target, required: true, label: 対象のホスト, hint: "ホスト名か IP アドレスを 1 つ", accept: [host, ip] }
+      - { name: ports, kind: ports, required: true, default: "80,443", label: ポート, hint: "例: 80,443,8000-8100" }
+    timeout_sec: 600
+  - id: nmap-top100
+    label: よく使われる上位 100 ポートを調べる（-T3 --top-ports 100）
+    program: nmap
+    args: ["-T3", "--top-ports", "100", "-oX", "{{out}}", "{{target}}"]
+    out: { format: nmap, ext: xml }
+    vars:
+      - { name: target, kind: target, required: true, label: 対象のホスト, hint: "ホスト名か IP アドレスを 1 つ", accept: [host, ip] }
+    timeout_sec: 600
 ---
 
 ## 機能

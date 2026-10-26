@@ -5,6 +5,16 @@ tags: [必修, ファジング, 高速, OSS]
 url: https://github.com/ffuf/ffuf
 license: MIT（無償）
 phase: [survey]
+commands:
+  - id: ffuf-dir
+    label: ディレクトリ探索（レート制限 20・同時 10）
+    program: ffuf
+    args: ["-u", "{{target}}", "-w", "{{wordlist}}", "-mc", "200,301,401,403", "-rate", "20", "-t", "10", "-of", "json", "-o", "{{out}}"]
+    out: { format: ffuf, ext: json }
+    vars:
+      - { name: target, kind: target, required: true, label: 対象の URL, hint: "FUZZ を含めます。例: https://example.com/FUZZ", accept: [url] }
+      - { name: wordlist, kind: text, required: true, label: ワードリストのパス, hint: "例: /usr/share/wordlists/dirb/common.txt（置き場所は /usr/share・Homebrew の share・/opt・自分のホームフォルダの直下にある wordlists / seclists / SecLists / dirb / dirbuster の下、拡張子は .txt か .lst だけ）", pattern: '(?!.*\.\.)(?:/usr/share|/usr/local/share|/opt/homebrew/share|/opt|/Users/[A-Za-z0-9_.-]+|/home/[A-Za-z0-9_.-]+)/(?:wordlists|seclists|SecLists|dirb|dirbuster)(?:/[A-Za-z0-9_.+~-]+)+\.(?:txt|lst)' }
+    timeout_sec: 900
 ---
 
 ## 機能

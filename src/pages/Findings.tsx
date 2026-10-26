@@ -4,9 +4,11 @@ import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Dialog } from '../components/Dialog'
 import { IconPlus } from '../components/Icons'
-import { NoEngagement, SeverityPill } from './shared'
+import { NoEngagement, SeverityPill, StatusTag } from './shared'
+import { SevIcon } from '../components/Severity'
 import type { SeverityKey, Surface } from '../types'
 import { PhaseGuide } from '../components/PhaseGuide'
+import { FilterBar } from '../components/FilterBar'
 
 const ORDER: SeverityKey[] = ['critical', 'high', 'medium', 'low', 'info']
 
@@ -15,6 +17,9 @@ export function FindingsPage() {
   const [params, setParams] = useSearchParams()
   const [open, setOpen] = useState(false)
   const severity = params.get('severity')
+  const q = params.get('q') || ''
+  // URL の status には、ファイルに保存されている値（英語の draft など）をそのまま入れます。
+  const status = params.get('status')
 
   const { data, error, loading, reload } = useAsync(
     async () => {
@@ -27,18 +32,25 @@ export function FindingsPage() {
 
   const rows = useMemo(() => {
     const list = data?.findings ?? []
-    const filtered = severity ? list.filter((f) => f.severity === severity) : list
+    let filtered = severity ? list.filter((f) => f.severity === severity) : list
+    if (status) filtered = filtered.filter((f) => f.status === status)
+    const needle = q.trim().toLowerCase()
+    if (needle) {
+      filtered = filtered.filter((f) =>
+        [f.vuln_name, f.id, f.identifier, f.target].some((v) => String(v ?? '').toLowerCase().includes(needle)))
+    }
     return [...filtered].sort((a, b) => ORDER.indexOf(a.severity) - ORDER.indexOf(b.severity))
-  }, [data, severity])
+  }, [data, severity, status, q])
 
   if (!current) return <NoEngagement />
 
-  const setSeverity = (v: string | null) => {
+  const setParam = (key: string, v: string | null) => {
     const next = new URLSearchParams(params)
-    if (v === null) next.delete('severity')
-    else next.set('severity', v)
-    setParams(next)
+    if (v === null) next.delete(key)
+    else next.set(key, v)
+    setParams(next, { replace: key === 'q' })
   }
+  const setSeverity = (v: string | null) => setParam('severity', v)
 
   return (
     <>
@@ -51,18 +63,34 @@ export function FindingsPage() {
 
       <PhaseGuide phase="triage" />
 
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
-        検出を手動で裏取りし、False Positive を除いたうえで 1 脆弱性 1 票にします。確定した票は報告書へ自動で統合されます。
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
+        検出を手動で裏取りし、False Positive を除いたうえで 1 脆弱性 1 票にします。確定した票は、報告書画面の『発見事項を反映』で報告書に入ります。
       </p>
 
-      <div className="filters">
-        <button className={`chip${!severity ? ' on' : ''}`} onClick={() => setSeverity(null)}>すべて</button>
-        {(meta?.severities ?? []).map((s) => (
-          <button key={s.key} className={`chip${severity === s.key ? ' on' : ''}`} onClick={() => setSeverity(s.key)}>
-            {s.label}・{s.ja}
-          </button>
-        ))}
-      </div>
+      <FilterBar
+        label="発見事項を絞り込む"
+        query={q}
+        onQuery={(v) => setParam('q', v.trim() ? v : null)}
+        placeholder="脆弱性名称・ID・識別子・対象で絞り込む"
+        chips={(meta?.findingStatuses ?? []).map((s) => ({ value: s.key, label: s.label }))}
+        selected={status}
+        onSelect={(v) => setParam('status', v)}
+      >
+        <div className="filters" role="group" aria-label="深刻度で絞り込む">
+          <button type="button" className={`chip${!severity ? ' on' : ''}`} aria-pressed={!severity} onClick={() => setSeverity(null)}>すべての深刻度</button>
+          {(meta?.severities ?? []).map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`chip${severity === s.key ? ' on' : ''}`}
+              aria-pressed={severity === s.key}
+              onClick={() => setSeverity(severity === s.key ? null : s.key)}
+            >
+              <SevIcon value={s.key} size={12} />{s.ja}
+            </button>
+          ))}
+        </div>
+      </FilterBar>
 
       {error && <div className="banner error">{error}</div>}
       {loading && <div className="empty">読み込んでいます…</div>}
@@ -73,9 +101,9 @@ export function FindingsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">#</th><th scope="col">深刻度</th><th scope="col">脆弱性名称</th>
+                <th scope="col">#</th><th scope="col">深刻度</th><th scope="col" className="col-name">脆弱性名称</th>
                 <th scope="col">識別子</th><th scope="col">CVSS</th><th scope="col">対象</th>
-                <th scope="col">関連サーフェス</th><th scope="col">状態</th>
+                <th scope="col">関連サーフェス</th><th scope="col" className="col-status">状態</th>
               </tr>
             </thead>
             <tbody>
@@ -87,13 +115,8 @@ export function FindingsPage() {
                   <td className="nowrap">{f.identifier}</td>
                   <td className="num">{f.cvss_score ?? ''}</td>
                   <td>{f.target}</td>
-                  <td>
-                    {f.surfaces.map((sid) => {
-                      const s = data?.surfaces.find((x) => x.id === sid)
-                      return <Link key={sid} to={`/surfaces/${sid}`} style={{ marginRight: 8 }}>{s?.value || sid}</Link>
-                    })}
-                  </td>
-                  <td>{f.status}</td>
+                  <td><SurfaceLinks ids={f.surfaces} surfaces={data?.surfaces ?? []} /></td>
+                  <td className="col-status"><StatusTag value={f.status} /></td>
                 </tr>
               ))}
             </tbody>
@@ -115,6 +138,19 @@ export function FindingsPage() {
         />
       )}
     </>
+  )
+}
+
+/** 関連サーフェスは 1 件目だけを出し、残りは「+2」のように数で示します（全件は title に）。 */
+function SurfaceLinks({ ids, surfaces }: { ids: string[]; surfaces: Surface[] }) {
+  if (ids.length === 0) return null
+  const name = (sid: string) => surfaces.find((x) => x.id === sid)?.value || sid
+  const [first, ...rest] = ids
+  return (
+    <span className="surface-links" title={ids.map(name).join('\n')}>
+      <Link to={`/surfaces/${first}`}>{name(first)}</Link>
+      {rest.length > 0 && <span className="more">+{rest.length}</span>}
+    </span>
   )
 }
 

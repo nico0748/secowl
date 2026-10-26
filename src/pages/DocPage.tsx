@@ -37,7 +37,7 @@ export function DocPage() {
 
       {mode === 'preview' ? (
         <div className="card">
-          <Markdown source={data.body} />
+          <Markdown source={data.body} eid={file.split(/[\\/]/)[0]} />
           <p className="doc-path" style={{ marginTop: 'var(--sp-4)' }}>{file}</p>
         </div>
       ) : (

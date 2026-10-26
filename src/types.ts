@@ -5,7 +5,6 @@ export interface SeverityMeta {
   label: string
   ja: string
   range: string
-  color: string
 }
 
 export interface Meta {
@@ -16,7 +15,11 @@ export interface Meta {
   surfaceKinds: Record<string, string>
   phases: Record<string, string>
   severities: SeverityMeta[]
+  /** 発見事項の状態。保存する値（key）は英語、表示（label）は日本語 */
+  findingStatuses: FindingStatusMeta[]
 }
+
+export interface FindingStatusMeta { key: string; label: string; hint: string }
 
 export interface Engagement {
   id: string
@@ -102,6 +105,8 @@ export interface Finding {
   identifier: string
   severity: SeverityKey
   severity_label: string
+  /** cvss: 基本値から決める（キーがない場合も含む） / manual: 手で決めた */
+  severity_source: 'cvss' | 'manual'
   cvss_vector: string
   cvss_score: number | null
   wstg_id: string
@@ -152,6 +157,10 @@ export interface ChecklistItem {
 
 export interface Doc {
   file: string
+  /** ファイル全体の版。保存時に baseVersion として送り返します。 */
+  version: string
+  /** 見出しごとの版。保存時に、編集した見出しの分を baseSections として送り返します。 */
+  sectionVersions: Record<string, string>
   data: Record<string, unknown>
   body: string
   raw: string
@@ -174,6 +183,10 @@ export interface GitStatus {
   branch?: string
   changes?: GitChange[]
   hasGitignore: boolean
+  /** .gitignore に書かれていない、生の出力などを追跡させないための行 */
+  ignoreMissing?: string[]
+  /** すでに追跡されている生の出力・作業場所のファイル数 */
+  rawTracked?: number
 }
 
 export interface GitCommit { hash: string; author: string; date: string; subject: string }
@@ -226,11 +239,169 @@ export interface KnowledgeItem {
   tools: string[]
   icon: string
   iconSource: '' | 'icon' | 'cover' | 'tile'
+  /** 実行できるコマンドのテンプレート（knowledge/tools の commands:）。ツールのページだけが持つ。 */
+  commands?: CommandTemplate[]
   body: string
 }
+
+/* ---------------- コマンドランナー ---------------- */
+
+export interface CommandVar {
+  name: string
+  kind: 'target' | 'ports' | 'text'
+  required: boolean
+  default?: string
+  label?: string
+  hint?: string
+  accept?: string[]
+  pattern?: string
+}
+
+export interface CommandTemplate {
+  id: string
+  label: string
+  program: string
+  args: string[]
+  out: { format?: string; ext: string } | null
+  vars: CommandVar[]
+  timeout_sec: number
+  hash?: string
+}
+
+export interface ExecCommand extends CommandTemplate {
+  /** このPCに実行ファイルがあり、実行してよい権限か */
+  available: boolean
+  programPath: string | null
+  /** 使えない理由の種類: missing = 見つからない、unsafe = 他のユーザーが書き換えられる場所にある */
+  unavailableKind: 'missing' | 'unsafe' | null
+  unavailableReason: string | null
+}
+
+export interface ExecTool {
+  slug: string
+  name: string
+  icon: string
+  phase: string[]
+  commands: ExecCommand[]
+}
+
+export interface ExecPlan {
+  planId: string
+  expiresAt: string
+  slug: string
+  toolName: string
+  cmdId: string
+  label: string
+  program: string
+  programPath: string | null
+  programIssue: 'missing' | 'unsafe' | null
+  /** 実行ファイルに渡す引数（1 要素ずつ。シェルの文字列にはしない） */
+  argv: string[]
+  command: string
+  /** 判定にも引数にも使う、正規化済みの対象 */
+  target: string
+  targetKind: string
+  /** 入力した値が正規化で変わったときだけ入る */
+  inputTarget: string | null
+  scopeVerdict: 'in' | 'allow' | 'out' | 'deny' | 'invalid'
+  verdictLabel: string
+  matched: string | null
+  scopeReason: string
+  warning: string | null
+  agreed: boolean
+  inPeriod: boolean
+  periodReason: string
+  blocked: boolean
+  reason: string
+  reasons: string[]
+  outPath: string | null
+  outFormat: string | null
+  timeoutSec: number
+  dns: { addresses: string[]; error?: string; skipped?: boolean; warning: string | null; blocked: boolean }
+}
+
+export type ExecStatus = 'running' | 'done' | 'failed' | 'stopped' | 'timeout' | 'interrupted'
+
+export interface ExecJob {
+  id: string
+  eid: string
+  slug: string
+  cmdId: string
+  label: string
+  toolName: string
+  program: string
+  programPath: string | null
+  argv: string[]
+  command: string
+  target: string
+  scopeVerdict: string
+  agreed: boolean | null
+  inPeriod: boolean | null
+  outFormat: string | null
+  outExt: string | null
+  timeoutSec: number
+  status: ExecStatus
+  startedAt: string
+  endedAt: string | null
+  durationMs: number | null
+  exitCode: number | null
+  signal: string | null
+  logId: string | null
+  logFile: string | null
+  outFile: string | null
+  outBytes: number | null
+  imported: { at: string; surfaces: number; findings: number } | null
+  /** ツール実行ログを書けなかったときの理由 */
+  logError?: string | null
+}
+
+/** 実行の記録（監査）のつながりの検証結果 */
+export interface ExecAudit { ok: boolean; lines: number; brokenAt: number | null }
+
+export type ExecStreamEvent =
+  | { t: 'start'; job: ExecJob }
+  | { t: 'c'; seq: number; s: 'out' | 'err'; x: string }
+  | { t: 'gap'; from: number; to: number }
+  | { t: 'hb' }
+  | { t: 'overflow'; after: number }
+  | { t: 'end'; job: ExecJob }
+
+export type ExecLaunchResult =
+  | { ok: true; jobId: string }
+  | { ok: false; cancelled?: boolean; status?: number; code?: string; error?: string }
 
 export interface Knowledge {
   tools: KnowledgeItem[]
   usecases: KnowledgeItem[]
   categories: string[]
+}
+
+/** 報告書に含めなかった発見事項（下書き） */
+export interface ExcludedFinding { id: string; vuln_name: string }
+
+/** 共有・書き出しの前の点検結果 */
+export interface ReportCheck {
+  included: number
+  checked: number
+  includeDraft: boolean
+  excluded: ExcludedFinding[]
+  leaks: { id: string; vuln_name: string; file: string; kinds: string[] }[]
+}
+
+/** 全体検索の 1 行 */
+export interface SearchHit {
+  file: string
+  line: number
+  text: string
+  kind: 'surface' | 'log' | 'finding' | 'doc'
+  id: string
+  title: string
+}
+
+/** 保存しようとした内容と、読み込んだあとの変更がぶつかった箇所 */
+export interface WriteConflict {
+  heading?: string
+  field?: string
+  file?: boolean
+  checklist?: string
 }

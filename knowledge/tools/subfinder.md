@@ -5,6 +5,15 @@ tags: [必修, サブドメイン, パッシブ, OSS]
 url: https://github.com/projectdiscovery/subfinder
 license: MIT（無償）
 phase: [recon]
+commands:
+  - id: subfinder-passive
+    label: パッシブな情報源でサブドメインを集める
+    program: subfinder
+    args: ["-d", "{{target}}", "-silent", "-o", "{{out}}"]
+    out: { format: subdomains, ext: txt }
+    vars:
+      - { name: target, kind: target, required: true, label: 対象のドメイン, hint: "例: example.com", accept: [host] }
+    timeout_sec: 600
 ---
 
 ## 機能

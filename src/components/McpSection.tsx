@@ -38,8 +38,8 @@ export function McpSection() {
   const shown = readOnly ? data.tools.filter((t) => !t.write) : data.tools
 
   const pre: React.CSSProperties = {
-    background: 'var(--sumi-50)',
-    border: '1px solid var(--border)',
+    background: 'var(--app-card-sub)',
+    border: '1px solid var(--app-border)',
     borderRadius: 'var(--radius-sm)',
     padding: 'var(--sp-3)',
     fontSize: 13,
@@ -56,7 +56,7 @@ export function McpSection() {
         <span className="card-note">{shown.length} ツールを公開</span>
       </div>
 
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
         SecOwl の操作を MCP サーバとして公開します。Claude Desktop や Claude Code から、診断対象の作成・サーフェスの登録・
         ツール出力の取り込み・発見事項の起票・報告書の生成までを呼び出せます。サーバは保存先の Markdown を直接読み書きするため、
         このアプリが起動していなくても動きます。
@@ -70,12 +70,12 @@ export function McpSection() {
         <input type="checkbox" checked={readOnly} onChange={(e) => setReadOnly(e.target.checked)} />
         <span>読み取り専用で登録する（書き込み系の {data.tools.filter((t) => t.write).length} ツールを公開しない）</span>
       </label>
-      <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: '0 0 var(--sp-4)' }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-muted)', margin: '0 0 var(--sp-4)' }}>
         書き込みを許すと、相手のモデルが発見事項や報告書を直接書き換えられます。読ませるだけなら読み取り専用で登録してください。
       </p>
 
       <h3 style={{ fontSize: 15, marginBottom: 'var(--sp-2)' }}>Claude Desktop</h3>
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', margin: '0 0 var(--sp-2)' }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', margin: '0 0 var(--sp-2)' }}>
         次の内容を設定ファイルの <code>mcpServers</code> に追記し、Claude Desktop を再起動してください。
       </p>
       <pre style={pre}>{desktop}</pre>
@@ -91,11 +91,11 @@ export function McpSection() {
             設定ファイルを開く
           </button>
         )}
-        <code style={{ fontSize: 13, color: 'var(--text-muted)', wordBreak: 'break-all' }}>{data.desktopConfigPath}</code>
+        <code style={{ fontSize: 13, color: 'var(--app-text-muted)', wordBreak: 'break-all' }}>{data.desktopConfigPath}</code>
       </div>
 
       <h3 style={{ fontSize: 15, marginBottom: 'var(--sp-2)' }}>Claude Code</h3>
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', margin: '0 0 var(--sp-2)' }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', margin: '0 0 var(--sp-2)' }}>
         端末で次のコマンドを実行します。
       </p>
       <pre style={pre}>{code}</pre>
@@ -115,7 +115,7 @@ export function McpSection() {
           <tbody>
             {shown.map((t) => (
               <tr key={t.name}>
-                <td style={{ whiteSpace: 'nowrap' }}><code>{t.name}</code><br /><span style={{ color: 'var(--text-muted)' }}>{t.title}</span></td>
+                <td style={{ whiteSpace: 'nowrap' }}><code>{t.name}</code><br /><span style={{ color: 'var(--app-text-muted)' }}>{t.title}</span></td>
                 <td>{t.description}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>{t.write ? '書き込み' : '読み取り'}</td>
               </tr>

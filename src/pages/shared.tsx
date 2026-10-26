@@ -1,23 +1,19 @@
 import { Link } from 'react-router-dom'
-import type { SeverityKey } from '../types'
+import { useStore } from '../state'
 
-const SEV_COLOR: Record<SeverityKey, string> = {
-  critical: '#890101',
-  high: '#ec0000',
-  medium: '#cd820a',
-  low: '#264af4',
-  info: '#949497',
-}
-const SEV_JA: Record<SeverityKey, string> = {
-  critical: '緊急', high: '重要', medium: '警告', low: '注意', info: 'なし',
+export { SeverityPill } from '../components/Severity'
+
+/** 発見事項の状態の表示名（保存されている値は英語のまま） */
+export function useStatusLabel() {
+  const { meta } = useStore()
+  return (key: string) => meta?.findingStatuses?.find((s) => s.key === key)?.label ?? key
 }
 
-export function SeverityPill({ value }: { value: SeverityKey }) {
-  return (
-    <span className="sev-pill" style={{ background: SEV_COLOR[value] }}>
-      {value.toUpperCase()}・{SEV_JA[value]}
-    </span>
-  )
+/** 発見事項の状態を日本語のタグで出します。色は .tag.status-* でトークンから当てます。 */
+export function StatusTag({ value }: { value: string }) {
+  const label = useStatusLabel()
+  const safe = /^[a-z]+$/.test(value) ? value : 'unknown'
+  return <span className={`tag status-${safe}`}>{label(value)}</span>
 }
 
 export function NoEngagement() {

@@ -1,15 +1,50 @@
-import { listSurfaces, listFindings, listToolLogs, docPaths } from './store.js'
+import { listSurfaces, listToolLogs, docPaths } from './store.js'
 import { readDoc, writeDoc } from './store.js'
 import { SEVERITIES, SEVERITY_META } from './severity.js'
 import { getSection } from './md.js'
 import { resolveFile } from './store.js'
 import { readMd } from './md.js'
 import { replaceMarker } from './md.js'
+import { reportableFindings } from './reportable.js'
 
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
 
 function esc(s) {
   return String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ')
+}
+
+/**
+ * 発見事項 1 件分の詳細ブロック（Markdown）を組み立てます。
+ * 報告書では depth: 4 で使い、「Markdown でコピー」では depth: 2, forCopy: true で使います。
+ * forCopy のときは、アプリの外に貼ると意味をなさないもの（証跡画像、出典ノート）を外します。
+ */
+export function findingBlock(f, d, { depth = 4, forCopy = false } = {}) {
+  const pick = (h) => getSection(d.body, h).trim()
+  const block = (label, heading) => {
+    const v = pick(heading)
+    return v ? ['', `**${label}**`, '', v] : []
+  }
+  const lines = [
+    ...(forCopy && f.status === 'draft' ? ['> 下書き: 裏取りが済んでいません。', ''] : []),
+    `${'#'.repeat(depth)} 発見事項 #${f.finding_no} — ${f.vuln_name}`,
+    '',
+    '| 項目 | 内容 |',
+    '|---|---|',
+    `| 識別子 | ${esc(f.identifier)} |`,
+    `| 深刻度 | ${SEVERITY_META[f.severity].ja} |`,
+    `| CVSS | ${esc(f.cvss_vector)} → ${f.cvss_score ?? ''} |`,
+    `| 対象 | ${esc(f.target)} |`,
+    ...block('平易な説明', '平易な説明'),
+    ...block('発見場所', '発見場所'),
+    ...block('リクエスト / レスポンス', 'リクエスト / レスポンス'),
+    ...block('再現手順', '再現手順'),
+    ...block('脆弱性があると判断した理由', '脆弱性があると判断した理由'),
+    ...block('システム・ビジネスへの影響', 'システム・ビジネスへの影響'),
+    ...block('対策', '対策'),
+    ...(forCopy ? [] : ['', `> 出典ノート: \`${f.file}\``]),
+  ]
+  const text = lines.join('\n')
+  return forCopy ? text.replace(/!\[([^\]]*)\]\([^)]*\)/g, (_, alt) => `（画像: ${alt || '証跡'}）`) : text
 }
 
 /** 報告書の自動生成ブロックを、現在の発見事項とサーフェスで更新する。手書き部分は保持する。 */
@@ -18,9 +53,8 @@ export function buildReport(eid) {
   const abs = resolveFile(rel)
   const { data, body } = readMd(abs)
 
-  const findings = listFindings(eid).sort(
-    (a, b) => SEV_ORDER[a.severity] - SEV_ORDER[b.severity] || String(a.finding_no).localeCompare(String(b.finding_no)),
-  )
+  // 報告書には下書きを含めません（共有バンドルだけが含める選択肢を持ちます）。
+  const { findings, excluded } = reportableFindings(eid, { includeDraft: false })
   const surfaces = listSurfaces(eid).filter((s) => s.in_scope)
   const logs = listToolLogs(eid)
 
@@ -64,35 +98,7 @@ export function buildReport(eid) {
   ].join('\n')
 
   const detail = findings.length
-    ? findings
-        .map((f) => {
-          const d = readDoc(f.file)
-          const pick = (h) => getSection(d.body, h).trim()
-          const block = (label, heading) => {
-            const v = pick(heading)
-            return v ? ['', `**${label}**`, '', v] : []
-          }
-          return [
-            `#### 発見事項 #${f.finding_no} — ${f.vuln_name}`,
-            '',
-            '| 項目 | 内容 |',
-            '|---|---|',
-            `| 識別子 | ${esc(f.identifier)} |`,
-            `| 深刻度 | ${SEVERITY_META[f.severity].ja} |`,
-            `| CVSS | ${esc(f.cvss_vector)} → ${f.cvss_score ?? ''} |`,
-            `| 対象 | ${esc(f.target)} |`,
-            ...block('平易な説明', '平易な説明'),
-            ...block('発見場所', '発見場所'),
-            ...block('リクエスト / レスポンス', 'リクエスト / レスポンス'),
-            ...block('再現手順', '再現手順'),
-            ...block('脆弱性があると判断した理由', '脆弱性があると判断した理由'),
-            ...block('システム・ビジネスへの影響', 'システム・ビジネスへの影響'),
-            ...block('対策', '対策'),
-            '',
-            `> 出典ノート: \`${f.file}\``,
-          ].join('\n')
-        })
-        .join('\n\n---\n\n')
+    ? findings.map((f) => findingBlock(f, readDoc(f.file), { depth: 4 })).join('\n\n---\n\n')
     : '発見事項はありません。'
 
   const inventory = [
@@ -122,5 +128,5 @@ export function buildReport(eid) {
   next = replaceMarker(next, 'overall', overall)
 
   writeDoc(rel, { data: { ...data, overall_severity: SEVERITY_META[highest].ja }, body: next })
-  return readDoc(rel)
+  return { ...readDoc(rel), included: findings.length, excluded }
 }

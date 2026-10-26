@@ -48,6 +48,7 @@ npm run dev        # http://127.0.0.1:5173
 - 「設定」画面の「Finder で開く」と、メニューの「ファイル → 保存先フォルダを開く」
 - 日本語のメニューバーと `Cmd+P`（印刷 / PDF に保存）
 - ウィンドウの位置とサイズを次回起動時に復元します
+- 「実行」画面（用意したコマンドのテンプレートから、許可したツールを起動します。下の「コマンドの実行」）
 
 保存先の既定値は、ソースから起動したときは `<app>/data`、`.app` から起動したときは `~/Documents/SecOwl` です。
 `.app` の中身は書き換えられないため、設定ファイルはアプリのユーザーデータ領域に置きます。
@@ -127,24 +128,24 @@ claude mcp add secowl -e SECOWL_DATA=<保存先> -- <node のパス> <アプリ>
 |---|---|
 | `SECOWL_DATA` | 調査データの保存先。省略するとアプリの設定か既定値を使います |
 | `SECOWL_CONFIG` | 設定ファイルのパス |
-| `SECOWL_MCP_READONLY` | `1` にすると読み取り専用の 22 ツールだけを公開します |
+| `SECOWL_MCP_READONLY` | `1` にすると読み取り専用の 23 ツールだけを公開します |
 
 **書き込みを許すと、接続したモデルが発見事項や報告書を直接書き換えられます。** 読ませるだけなら
 `SECOWL_MCP_READONLY=1` を付けて登録してください。設定画面のチェックを入れると、その状態の設定が出ます。
 
-### 公開するツール（37）
+### 公開するツール（39）
 
-**読み取り（22）**
+**読み取り（23）**
 
 `list_engagements` / `get_engagement` / `get_dashboard` / `get_progress` / `list_surfaces` /
 `list_tool_logs` / `list_findings` / `get_checklist` / `list_evidence` / `read_doc` / `search` /
 `get_report` / `get_settings` / `git_status` / `git_log` / `list_reference_tools` /
 `get_reference_tool` / `list_usecases` / `get_usecase` / `list_playbook` / `get_playbook` /
-`calculate_cvss`
+`calculate_cvss` / `check_report`
 
-**書き込み（15）**
+**書き込み（16）**
 
-`create_engagement` / `create_surface` / `create_tool_log` / `create_finding` / `update_doc` /
+`create_engagement` / `update_engagement` / `create_surface` / `create_tool_log` / `create_finding` / `update_doc` /
 `set_checklist_item` / `import_tool_output` / `add_evidence` / `delete_evidence` / `build_report` /
 `export_report` / `ensure_docs` / `set_data_root` / `git_init` / `git_commit`
 
@@ -153,6 +154,9 @@ claude mcp add secowl -e SECOWL_DATA=<保存先> -- <node のパス> <アプリ>
 
 `export_report` は docx / 共有バンドル HTML / 印刷用 HTML / Markdown を書き出し、保存したパスを返します。
 `import_tool_output` は `dry_run` を付けて先に件数を確認できます。
+`build_report` は下書き（draft）を報告書に含めず、含めた件数（`included`）と除外した下書き（`excluded`）を返します。
+`update_engagement` は診断対象の名前・顧客・対象システム・期間を `engagement.json` に保存し、スコープ文書と報告書の frontmatter にある写しを同期します。
+`check_report` は共有の前に、報告書に載せる個票に伏せていない Cookie・Authorization・JWT・メールアドレスが残っていないかを点検します。
 
 ### リソースとプロンプト
 
@@ -381,12 +385,23 @@ Templater 構文（`<% %>`）をアプリ用の `{{ }}` に置き換え、偵察
 
 ---
 
+## 診断対象の情報と事前準備
+
+- 名前・顧客・対象システム・期間の正は `engagement.json` です。スコープ文書と報告書の frontmatter にある `client` / `target_system` / `period_from` / `period_to` は写しで、
+  アプリから診断対象の情報を保存したときに同期します。報告書の表紙（印刷・Word）は `engagement.json` を読みます。
+- 「事前準備」画面（`/scope`）で、スコープ文書の承認（`agreed`・`agreed_at`・`agreed_by`）を記録します。`agreed: true` でホームの E0 が完了になります。
+- Obsidian で写しを直接書き換えた場合、アプリはそれを正とは扱わず、画面で食い違いを知らせます。「設定の値に揃える」で同期し直せます。
+
 ## 設計の前提
 
 - サーバは `127.0.0.1` だけで待ち受けます。外部からは接続できません。
 - 読み書きの対象は保存先フォルダ配下の `.md` に限ります。それ以外のパスは API が拒否します。
 - 認証はありません。1 人で使うことを前提にしています。
 - 証跡の実トークンと個人情報は、保存する前にマスキングしてください。
+- API は `Host` が `127.0.0.1` / `localhost` / `[::1]` の要求だけを受け付けます（DNS rebinding 対策）。
+  書き込みの要求は、`Origin` の host:port が `Host` と一致しない場合と、`Sec-Fetch-Site` が `same-origin` / `none` 以外の場合に拒否します。
+  同じ PC の別ポートで動くページからの書き込みも拒否します。`vite --host` などで LAN から開いた場合、API は 403 を返します（意図した動作です）。
+- Markdown のプレビューと書き出しでは、生の HTML を描画せず文字として出します。`javascript:` などのリンクはリンクにしません。
 
 ## 配色とタイポグラフィ
 
@@ -398,6 +413,28 @@ Templater 構文（`<% %>`）をアプリ用の `{{ }}` に置き換え、偵察
 色だけで判断させないため、ドーナツ図には必ず凡例と数値を並べて表示します。
 
 ---
+
+## コマンドの実行（デスクトップ版のみ）
+
+左のレールの「実行」から、`knowledge/tools/*.md` の `commands:` に書いたテンプレートを実行します。ブラウザ版ではルート自体が存在せず（404）、画面にも出ません。
+
+- 許可したプログラムだけ（nmap・httpx・nuclei・ffuf・gobuster・subfinder ほか。`curl` と `sudo` は入れていません）。シェルは使わず、引数の配列をそのまま渡します。値が `-` で始まるものは拒否します
+- 実行前に、対象の正規化した値をスコープ（`scope_targets` / `scope_allow` / `scope_deny` / `scope_ports`）に照らし、書面の承認（承認印・承認日・承認者）と診断期間を確認します。起動の直前にも、もう一度確認します
+- 「実行前の確認」で、実行ファイルの絶対パスと引数を 1 つずつ見せます。「実行」を押すと、アプリ本体からも短いネイティブの確認が出ます（既定はキャンセル）。起動は HTTP ではなく IPC だけです
+- 出力ファイルは `<診断対象>/20-調査/取得データ/` の中だけ。**この生の出力は伏せ字にしておらず、Git でも追跡しません。** ツール実行ログに書く本文は、制御文字を除き、Cookie・トークン・JWT・メールアドレスを伏せ字にしてから保存します
+- ツール実行ログに保存する本文は、先頭と末尾（それぞれ約 100KB）だけです。1 行が 32,000 文字を超えるときは、先頭を残して「長すぎる行の途中を省略しました（N 文字）」と書きます。切れた秘匿値の一部が残らないよう、区切りのところまで戻して切ります
+- 実行の記録は `<診断対象>/.secowl/audit.jsonl` に追記します（各行に前の行のハッシュを持たせ、書き換えると分かります）。実行ページの「実行の履歴」の「実行の記録を検証」で、つながりを確かめられます
+- 保存先の `.gitignore` には `*/20-調査/取得データ/` と `*/.secowl/run/` を入れます。以前に作った保存先や、自分で `git init` した保存先には、設定画面の Git の警告から追記できます（コミットするときにも、足りなければ追記します）。すでに追跡されているファイルは `.gitignore` では外れないため、設定画面に件数を出して知らせます
+- 実行ファイルは `/opt/homebrew/bin`・`/usr/local/bin`・`~/go/bin`・`~/.local/bin` と `PATH` から探します。他のユーザーが書き換えられる権限のものは実行しません（実体だけでなく、見つけた場所と、リンクをたどった道筋のディレクトリも見ます。たとえば Intel 版 Homebrew の `/usr/local/bin` が既定でグループに書き込みを許している場合は、そこから見つけたものは実行不可と表示されます。`chmod go-w /usr/local/bin` で直すか、`~/go/bin` や `~/.local/bin` に置いてください）。子プロセスの環境は PATH・HOME・LANG などに絞ります（プロキシを通すときだけ `secowl.config.json` に `"execPassProxy": true`）。同時に実行できる数は `execConcurrency`（既定 2）
+
+画面（HTML・JS・CSS）には、自分のオリジンのスクリプトだけを許す CSP（`script-src 'self'`）を付けています。テーマの先読みスクリプトも外部ファイル（`theme-init.js`）にしてあります。このため、Markdown 本文に埋め込んだ**外部ドメインの画像**は読み込まれません（`img-src` は自分自身・`data:`・`blob:` だけ）。診断中に外部へ接続しないための意図した挙動です。画像は保存先の中に置いてください。
+
+テンプレートを足すときの注意:
+
+- 変数 1 つは引数 1 個です。空のまま引数を省く書き方はないので、`required: false` にするときは `default` が必要です（読み込み時に検査します）
+- ffuf / gobuster のワードリストは、`/usr/share`・`/usr/local/share`・`/opt/homebrew/share`・`/opt`・自分のホームフォルダ（`/Users/<名前>`、`/home/<名前>`）の直下にある `wordlists`・`seclists`・`SecLists`・`dirb`・`dirbuster` の下の `.txt` / `.lst` だけです。ほかの場所のファイルや `..` は通しません（独自のワードリストは `~/wordlists/` に置くと使えます）
+
+Electron での実機確認は `xvfb-run -a node test/e2e/runner.e2e.cjs`（Playwright が必要。`npm test` には含めません。本物のツールは使わず、代役のプログラムを使います）。
 
 ## ツール出力の取り込み
 
@@ -426,6 +463,16 @@ nuclei から起票した発見事項は `status: draft` で、本文に「手�
 
 - **v3.1**: 基本評価・現状評価・環境評価を計算します。式は FIRST の仕様書 (CVSS v3.1 Specification Document §7) のとおりです。
   既知のベクタ 10 件で基本値を検算してあります。「基本値を個票へ反映」を押すとベクタとスコアが個票に入り、深刻度が決まります。
+
+### 深刻度の決まり方（`severity_source`）
+
+個票の frontmatter の `severity_source` は、深刻度を CVSS 基本値から決めたか（`cvss`）、手で決めたか（`manual`）を表します。
+キーがない既存の個票は `cvss` とみなします。
+
+- 基本値（`cvss_score`）を入れると、深刻度は FIRST の区分で決まります。
+- 「深刻度」で基本値から導いた値と**異なる**値を選ぶと `manual` になり、あとで別の欄を保存しても上書きは残ります。
+  「CVSS 基本値から決める」を選ぶと `cvss` に戻ります。
+- 基本値が未記入のあいだは、選んだ深刻度（nuclei の取り込みでは nuclei の深刻度）を仮の値として使います。基本値を入れた時点で基本値から決まります。
 - **v4.0**: ベクタ文字列の組み立てだけを行います。v4.0 のスコアは MacroVector の参照表を使うため、本アプリでは計算しません。
   スコアは [FIRST の計算機](https://www.first.org/cvss/calculator/4.0) で算出し、個票へ手入力してください。
 
@@ -435,7 +482,13 @@ nuclei から起票した発見事項は `status: draft` で、本文に「手�
 
 - 画像を選ぶとアップロードします。ファイル名には発見事項 ID が前置されます。
 - 「マスキング」で画像を開き、隠したい範囲をドラッグすると塗りつぶします。保存は画素を上書きするため、元の内容は残りません。
-- 「本文へ挿入」で `![証跡](evidence/<ファイル名>)` を「発見場所」の節に追記します。保存すると Markdown に入ります。
+- 個票を開いている間は、画像を貼り付ける（⌘V / Ctrl+V）か、パネルへドロップすると証跡として保存します。
+  貼り付けた画像は、入力中の見出し（なければ「発見場所」）にリンクを挿入します。
+- 「リクエスト / レスポンス」の「HTTP を貼り付け」では、Cookie の値・Authorization・JWT・API キーやトークンやパスワード（`X-Api-Key` ヘッダ、`access_token=`、JSON の `"token"` など）・メールアドレスと、指定した語句を `[REDACTED]` に置き換えてから、コードブロックで追記します。
+- 本文に伏せていない Cookie・Authorization・JWT・API キー／トークン／パスワード・メールアドレスが残っていると、個票の上と共有ダイアログに警告を出します（`example.com` などの例示用ドメインと、`...`・`█`・`[REDACTED]` などで伏せた値は数えません）。
+- 「本文へ挿入」で `![証跡](../evidence/<ファイル名>)` を「発見場所」の節に追記します。保存すると Markdown に入ります。
+  個票は `30-トリアージ/` にあるため、Obsidian でも個票の位置から解決できる相対パスにしています。
+  旧形式の `evidence/<ファイル名>` もアプリのプレビューと書き出しでは表示します（Obsidian での表示は環境によります。未検証）。
 
 ## Git（保存先の版管理）
 

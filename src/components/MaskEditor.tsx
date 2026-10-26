@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 
 interface Rect { x: number; y: number; w: number; h: number }
 
+/** 塗りつぶしの色。画素に焼き込むため、テーマに関係なく tokens.css の --app-mask-fill（固定値）を使います。 */
+function maskFill(): string {
+  return getComputedStyle(document.documentElement).getPropertyValue('--app-mask-fill').trim()
+}
+
 /**
  * 画像の一部を塗りつぶして保存する編集画面です。
  * 塗りつぶしは画素を上書きします。元の画素は残らないため、保存後は元に戻せません。
@@ -39,7 +44,7 @@ export function MaskEditor({ src, onSave, onClose }: {
     c.style.height = `${Math.round(img.naturalHeight * scale)}px`
     const ctx = c.getContext('2d')!
     ctx.drawImage(img, 0, 0)
-    ctx.fillStyle = '#1a1a1c'
+    ctx.fillStyle = maskFill()
     for (const r of [...rects, ...(drag ? [drag] : [])]) ctx.fillRect(r.x, r.y, r.w, r.h)
   }, [ready, rects, drag])
 
@@ -64,13 +69,13 @@ export function MaskEditor({ src, onSave, onClose }: {
   return (
     <div>
       {err && <div className="banner error">{err}</div>}
-      <p style={{ fontSize: 14, color: 'var(--text-sub)', marginTop: 0 }}>
+      <p style={{ fontSize: 14, color: 'var(--app-text-sub)', marginTop: 0 }}>
         画像の上をドラッグすると、その範囲を塗りつぶします。保存すると画素を上書きするため、塗りつぶした内容は元に戻せません。
       </p>
-      <div style={{ overflow: 'auto', background: 'var(--sumi-200)', padding: 'var(--sp-2)', borderRadius: 'var(--radius-sm)' }}>
+      <div style={{ overflow: 'auto', background: 'var(--app-card-sub)', padding: 'var(--sp-2)', borderRadius: 'var(--radius-sm)' }}>
         <canvas
           ref={canvasRef}
-          style={{ display: 'block', cursor: 'crosshair', background: '#fff' }}
+          style={{ display: 'block', cursor: 'crosshair', background: 'var(--app-canvas-paper)' }}
           onMouseDown={(e) => { const p = toImageCoords(e); setDrag({ x: p.x, y: p.y, w: 0, h: 0 }) }}
           onMouseMove={(e) => {
             if (!drag) return
@@ -85,7 +90,7 @@ export function MaskEditor({ src, onSave, onClose }: {
         />
       </div>
       <div className="dialog-actions">
-        <span style={{ marginRight: 'auto', fontSize: 14, color: 'var(--text-muted)' }}>塗りつぶし {rects.length} 箇所</span>
+        <span style={{ marginRight: 'auto', fontSize: 14, color: 'var(--app-text-muted)' }}>塗りつぶし {rects.length} 箇所</span>
         <button className="btn quiet" onClick={() => setRects([])} disabled={rects.length === 0}>やり直す</button>
         <button className="btn quiet" onClick={onClose}>閉じる</button>
         <button className="btn" onClick={save} disabled={busy || rects.length === 0}>{busy ? '保存しています…' : '上書き保存'}</button>

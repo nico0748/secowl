@@ -2,15 +2,18 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Donut } from '../components/Donut'
+import { SeverityBadge } from '../components/Severity'
 import { NoEngagement } from './shared'
 import type { Progress } from '../types'
 
 const PHASE_ROUTE: Record<string, string> = {
-  preparation: '/settings', recon: '/surfaces', survey: '/survey', triage: '/findings', report: '/report',
+  preparation: '/scope', recon: '/surfaces', survey: '/survey', triage: '/findings', report: '/report',
 }
 const STATE_LABEL: Record<string, string> = { todo: '未着手', doing: '進行中', done: '完了' }
 
-const CAT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#4a3aa7']
+// 技術スタックのカテゴリ色。深刻度の色と色覚多様性の条件で近いものがあるため、
+// カテゴリと深刻度を同じグラフ・同じ凡例に並べないこと（loop/r2-color.md §7）。
+const CAT_COLORS = ['var(--app-cat-1)', 'var(--app-cat-2)', 'var(--app-cat-3)', 'var(--app-cat-4)', 'var(--app-cat-5)']
 
 export function DashboardPage() {
   const { current, revision } = useStore()
@@ -33,9 +36,9 @@ export function DashboardPage() {
   const restCount = tech.slice(5).reduce((a, t) => a + t.count, 0)
   const techSlices = [
     ...topTech.map((t, i) => ({ key: t.name, label: t.name, value: t.count, color: CAT_COLORS[i] })),
-    ...(restCount > 0 ? [{ key: '__other', label: `その他 ${tech.length - 5} 件`, value: restCount, color: 'var(--sumi-400)' }] : []),
+    ...(restCount > 0 ? [{ key: '__other', label: `その他 ${tech.length - 5} 件`, value: restCount, color: 'var(--app-cat-other)' }] : []),
   ]
-  const sevSlices = data.severity.map((s) => ({ key: s.key, label: s.ja, value: s.count, color: s.color }))
+  const sevSlices = data.severity.map((s) => ({ key: s.key, label: s.ja, value: s.count, color: `var(--app-sev-${s.key})` }))
 
   return (
     <>
@@ -44,11 +47,11 @@ export function DashboardPage() {
       <div className="dash-col">
         <section className="card">
           <div className="card-head">
-            <span className="card-title">アタックサーフェス</span>
+            <span className="card-title">サーフェス</span>
             <Link className="card-note" to="/surfaces">一覧</Link>
           </div>
           <div className="stat-total">
-            <span className="stat-label">TOTAL</span>
+            <span className="stat-label">合計</span>
           </div>
           <div className="stat-value">{data.totals.surfaces}</div>
           <div className="kind-list">
@@ -59,7 +62,7 @@ export function DashboardPage() {
               </div>
             ))}
           </div>
-          <div className="kind-row" style={{ borderTop: '1px solid var(--border)', marginTop: 'var(--sp-2)', paddingTop: 'var(--sp-2)' }}>
+          <div className="kind-row" style={{ borderTop: '1px solid var(--app-border)', marginTop: 'var(--sp-2)', paddingTop: 'var(--sp-2)' }}>
             <span>調査済</span>
             <b>{data.statusCounts.find((s) => s.status === '調査済')?.count ?? 0}</b>
           </div>
@@ -68,7 +71,7 @@ export function DashboardPage() {
         <section className="card">
           <div className="card-head"><span className="card-title">ポート番号</span></div>
           {data.ports.length === 0 ? (
-            <p className="hint" style={{ color: 'var(--text-muted)', fontSize: 14 }}>ポート種別のサーフェスを登録すると、ここに一覧が出ます。</p>
+            <p className="hint" style={{ color: 'var(--app-text-muted)', fontSize: 14 }}>ポート種別のサーフェスを登録すると、ここに一覧が出ます。</p>
           ) : (
             <table className="port-table">
               <thead>
@@ -83,7 +86,7 @@ export function DashboardPage() {
                     onClick={() => nav(`/surfaces?port=${p.port}`)}
                     onKeyDown={(e) => { if (e.key === 'Enter') nav(`/surfaces?port=${p.port}`) }}
                   >
-                    <td>{p.port}{p.service ? <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>　{p.service}</span> : null}</td>
+                    <td>{p.port}{p.service ? <span style={{ color: 'var(--app-text-muted)', fontWeight: 400 }}>　{p.service}</span> : null}</td>
                     <td><span className="port-count">{p.count}</span></td>
                   </tr>
                 ))}
@@ -100,7 +103,7 @@ export function DashboardPage() {
             <Link className="card-note" to="/survey">ツールごとの記録数（実行ログ＋発見事項）・計 {data.totals.logs} ログ</Link>
           </div>
           {data.tools.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: 0 }}>nmap や Burp Suite の実行ログを登録すると、ツール別の件数が出ます。</p>
+            <p style={{ color: 'var(--app-text-muted)', fontSize: 14, margin: 0 }}>nmap や Burp Suite の実行ログを登録すると、ツール別の件数が出ます。</p>
           ) : (
             <div className="tool-grid">
               {data.tools.map((t) => (
@@ -128,10 +131,10 @@ export function DashboardPage() {
             <div className="sev-cards">
               {data.severity.map((s) => (
                 <button key={s.key} className="sev-card" onClick={() => nav(`/findings?severity=${s.key}`)}>
-                  <span className="sev-dot" style={{ background: s.color }} aria-hidden="true">!</span>
+                  <SeverityBadge value={s.key} />
                   <span className="sev-name">{s.label}</span>
                   <span className="sev-count">{s.count}</span>
-                  <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{s.ja}</span>
+                  <span style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>{s.ja}</span>
                 </button>
               ))}
             </div>
@@ -146,7 +149,7 @@ export function DashboardPage() {
           <div className="tech-layout">
             <Donut slices={techSlices} centerLabel="検出" onSelect={(key) => key !== '__other' && nav(`/surfaces?tech=${encodeURIComponent(key)}`)} emptyText="未登録" />
             <div className="legend">
-              {techSlices.length === 0 && <span style={{ color: 'var(--text-muted)' }}>サーフェスに製品名や技術を記録すると、内訳が出ます。</span>}
+              {techSlices.length === 0 && <span style={{ color: 'var(--app-text-muted)' }}>サーフェスに製品名や技術を記録すると、内訳が出ます。</span>}
               {techSlices.map((t) => (
                 <div className="legend-row" key={t.key}>
                   <span className="legend-swatch" style={{ background: t.color }} />
@@ -174,7 +177,12 @@ function ProgressPanel({ progress }: { progress: Progress }) {
       {progress.nextAction && <p className="flow-next"><b>次の一手</b>　{progress.nextAction}</p>}
       <ol className="flow-steps">
         {progress.phases.map((p) => (
-          <li key={p.phase} className={`flow-step ${p.state}${progress.current === p.phase ? ' current' : ''}`}>
+          <li
+            key={p.phase}
+            className={`flow-step ${p.state}${progress.current === p.phase ? ' current' : ''}`}
+            aria-current={progress.current === p.phase ? 'step' : undefined}
+          >
+            {progress.current === p.phase && <span className="flow-here">現在地</span>}
             <Link to={PHASE_ROUTE[p.phase] || '/playbook'} className="flow-link">
               <span className="flow-badge">{p.label}</span>
               <span className="flow-title">{p.title}</span>

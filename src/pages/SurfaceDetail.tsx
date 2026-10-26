@@ -2,7 +2,8 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { DocEditor } from '../components/DocEditor'
-import { NoEngagement, SeverityPill } from './shared'
+import { execAvailable } from '../platform'
+import { NoEngagement, SeverityPill, StatusTag } from './shared'
 
 const STATUS_OPTIONS = ['未調査', '調査中', '調査済', '対象外'].map((v) => ({ value: v, label: v }))
 
@@ -37,6 +38,12 @@ export function SurfaceDetailPage() {
         <h1>{surface.value || surface.title}</h1>
         <span className="tag">{surface.kind_label}</span>
         <span className="tag">{surface.status}</span>
+        {execAvailable() && surface.value && (
+          <>
+            <div className="spacer" />
+            <Link className="btn secondary" to={`/run?target=${encodeURIComponent(surface.value)}`}>このサーフェスにツールを実行</Link>
+          </>
+        )}
       </div>
 
       <div className="card" style={{ marginBottom: 'var(--sp-4)' }}>
@@ -44,7 +51,7 @@ export function SurfaceDetailPage() {
         <div className="grid-2">
           <div>
             <h3 style={{ fontSize: 14, marginBottom: 'var(--sp-2)' }}>ツール実行ログ（{relatedLogs.length}）</h3>
-            {relatedLogs.length === 0 ? <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>まだありません。</p> : (
+            {relatedLogs.length === 0 ? <p style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>まだありません。</p> : (
               <ul style={{ fontSize: 14, paddingLeft: '1.2em', margin: 0 }}>
                 {relatedLogs.map((l) => (
                   <li key={l.id}><Link to={`/survey/logs/${l.id}`}>{l.tool} — {l.title}</Link></li>
@@ -54,12 +61,13 @@ export function SurfaceDetailPage() {
           </div>
           <div>
             <h3 style={{ fontSize: 14, marginBottom: 'var(--sp-2)' }}>発見事項（{relatedFindings.length}）</h3>
-            {relatedFindings.length === 0 ? <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>まだありません。</p> : (
+            {relatedFindings.length === 0 ? <p style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>まだありません。</p> : (
               <ul style={{ fontSize: 14, paddingLeft: '1.2em', margin: 0, display: 'grid', gap: 4 }}>
                 {relatedFindings.map((f) => (
                   <li key={f.id}>
                     <SeverityPill value={f.severity} />{' '}
-                    <Link to={`/findings/${f.id}`}>{f.vuln_name}</Link>
+                    <Link to={`/findings/${f.id}`}>{f.vuln_name}</Link>{' '}
+                    <StatusTag value={f.status} />
                   </li>
                 ))}
               </ul>

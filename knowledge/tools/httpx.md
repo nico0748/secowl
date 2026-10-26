@@ -5,6 +5,15 @@ tags: [必修, 生存確認, 技術スタック, パイプライン]
 url: https://github.com/projectdiscovery/httpx
 license: MIT（無償）
 phase: [recon]
+commands:
+  - id: httpx-probe
+    label: 生存確認と技術スタックの検出（JSON 出力）
+    program: httpx
+    args: ["-u", "{{target}}", "-silent", "-json", "-tech-detect", "-title", "-status-code", "-o", "{{out}}"]
+    out: { format: httpx, ext: jsonl }
+    vars:
+      - { name: target, kind: target, required: true, label: 対象, hint: "ホスト名か URL を 1 つ" }
+    timeout_sec: 300
 ---
 
 ## 機能
