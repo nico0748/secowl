@@ -28,6 +28,8 @@ import { checkReport } from './lib/reportable.js'
 import { searchDocs } from './lib/search.js'
 import { createExec, ExecError, JOB_ID_RE } from './lib/exec.js'
 import { createInstall } from './lib/install.js'
+import { createJobRunner } from './lib/setup-job.js'
+import { createWordlists } from './lib/wordlists.js'
 import { createSetup } from './lib/setup.js'
 
 export const app = express()
@@ -70,7 +72,10 @@ export function setHostBridge(bridge) { host = bridge }
  */
 export const execService = createExec()
 /** ツールの導入の点検と権限の修正。修正そのものは HTTP では受けず、メインプロセスが IPC で受けて呼びます。 */
-export const installService = createInstall()
+// 時間のかかる環境構築の作業は、導入もワードリストの取得も 1 本ずつ動かします。
+export const setupJobs = createJobRunner()
+export const installService = createInstall({ runner: setupJobs })
+export const wordlistService = createWordlists({ runner: setupJobs })
 export const setupService = createSetup({
   resolve: (program) => execService.resolveProgram(program),
   // brew・go 自身の置き場所も、権限を直す対象に入れます（直すまで導入を動かせないため）
@@ -112,10 +117,12 @@ execRouter.get('/exec/templates', execWrap(() => execService.listTemplates()))
 // 導入の点検（読み取りだけ）と、権限を直す計画。実際に直すのは IPC からだけです。
 execRouter.get('/exec/setup', execWrap(() => ({ ...setupService.report(), installers: installService.installers() })))
 execRouter.post('/exec/setup/fix-plan', execWrap(() => setupService.planFix()))
-// 導入の計画と、いま動いている導入の状態。実際に始めるのは IPC からだけです。
+// 導入とワードリストの計画、いま動いている作業の状態。実際に始めるのは IPC からだけです。
 execRouter.post('/exec/setup/install-plan', execWrap((req) => installService.plan(req.body || {})))
-execRouter.get('/exec/setup/install', execWrap(() => installService.current()))
-execRouter.post('/exec/setup/install/stop', execWrap((req) => installService.stop(req.body?.jobId)))
+execRouter.get('/exec/setup/wordlists', execWrap(() => wordlistService.report()))
+execRouter.post('/exec/setup/wordlist-plan', execWrap((req) => wordlistService.plan(req.body || {})))
+execRouter.get('/exec/setup/job', execWrap(() => setupJobs.current()))
+execRouter.post('/exec/setup/job/stop', execWrap((req) => setupJobs.stop(req.body?.jobId)))
 execRouter.post('/engagements/:eid/exec/plan', execWrap((req) => execService.plan(req.params.eid, req.body || {})))
 execRouter.get('/engagements/:eid/exec', execWrap((req) => execService.list(req.params.eid)))
 // 実行の記録（監査）のつながりを確かめる。書き換えや削除があると、切れた行の番号を返す

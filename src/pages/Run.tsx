@@ -59,6 +59,8 @@ function RunInner({ eid }: { eid: string }) {
   const { data: tools, error: toolsError, loading } = useAsync(() => api.execTemplates(), [revision])
   const { data: surfaces } = useAsync(() => api.surfaces(eid), [eid, revision])
   const { data: history, reload: reloadHistory } = useAsync(() => api.execJobs(eid), [eid, revision])
+  // 入力欄の候補に出す、このPCのワードリスト（取得したあとは revision で読み直します）。
+  const { data: wordlists } = useAsync(() => api.wordlists(), [revision])
 
   const all = useMemo(() => (tools ?? []).flatMap((t) => t.commands.map((c) => ({ tool: t, cmd: c }))), [tools])
   const slug = params.get('slug') || ''
@@ -308,7 +310,7 @@ function RunInner({ eid }: { eid: string }) {
                       type="text"
                       value={values[v.name] ?? ''}
                       onChange={(e) => setValues({ ...values, [v.name]: e.target.value })}
-                      list={v.kind === 'target' ? 'run-targets' : undefined}
+                      list={v.kind === 'target' ? 'run-targets' : v.name === 'wordlist' ? 'run-wordlists' : undefined}
                       autoComplete="off"
                       spellCheck={false}
                       placeholder={v.kind === 'target' ? 'app.example.com' : v.kind === 'ports' ? '80,443,8000-8100' : ''}
@@ -317,6 +319,7 @@ function RunInner({ eid }: { eid: string }) {
                   </div>
                 ))}
                 <datalist id="run-targets">{surfaceValues.map((s) => <option key={s} value={s} />)}</datalist>
+                <datalist id="run-wordlists">{(wordlists?.available ?? []).map((w) => <option key={w.path} value={w.path}>{w.name}</option>)}</datalist>
                 <div className="dialog-actions">
                   <button className="btn" type="submit" disabled={planning || !picked.cmd.available || starting || live}>
                     {planning ? '確認しています…' : '実行前の確認'}

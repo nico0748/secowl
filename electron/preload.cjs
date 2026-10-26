@@ -23,4 +23,6 @@ contextBridge.exposeInMainWorld('secowlDesktop', {
   setupFix: (req) => ipcRenderer.invoke('secowl:setup-fix', { planId: String(req && req.planId || '') }),
   // 導入を始める依頼。入れるものはサーバ側が計画から決めるので、画面からは planId しか渡せません。
   setupInstall: (req) => ipcRenderer.invoke('secowl:setup-install', { planId: String(req && req.planId || '') }),
+  // ワードリストの取得。取得先はサーバ側が計画から決めるので、画面からは planId しか渡せません。
+  setupWordlists: (req) => ipcRenderer.invoke('secowl:setup-wordlists', { planId: String(req && req.planId || '') }),
 })

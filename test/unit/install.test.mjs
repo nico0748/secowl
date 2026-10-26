@@ -5,6 +5,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createInstall } from '../../server/lib/install.js'
+import { createJobRunner } from '../../server/lib/setup-job.js'
 
 const SKIP = process.platform === 'win32' ? 'POSIX のみ' : false
 const yes = async () => true
@@ -39,9 +40,16 @@ function bin() {
   return { root: dir, bin: path.join(dir, 'bin') }
 }
 
-/** 代役だけを見る導入。ffuf と nmap を入れてよいことにします（入れ方の表はそのまま使います）。 */
+/**
+ * 代役だけを見る導入。ffuf と nmap を入れてよいことにします（入れ方の表はそのまま使います）。
+ * 作業を動かす仕組みはワードリストの取得と共有するものなので、ここでもテスト用に 1 つ作って渡し、
+ * 進み具合（current）と中止（stop）はそちらを見ます。
+ */
 function make(t, over = {}) {
-  return createInstall({ searchPaths: [t.bin], allowed: new Set(['ffuf', 'nmap', 'whatweb']), env: { ...process.env, PATH: t.bin }, ...over })
+  const { killGraceMs, ...rest } = over
+  const runner = createJobRunner({ killGraceMs })
+  const ins = createInstall({ searchPaths: [t.bin], allowed: new Set(['ffuf', 'nmap', 'whatweb']), env: { ...process.env, PATH: t.bin }, runner, ...rest })
+  return { ...ins, current: runner.current, stop: runner.stop }
 }
 
 const finished = async (ins, ms = 15000) => {

@@ -2,10 +2,10 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { spawn } from 'node:child_process'
 import { ALLOWED } from './command-templates.js'
-import { cleanLine, displayCommand, ExecError, writablePart } from './exec.js'
+import { displayCommand, ExecError, writablePart } from './exec.js'
 import { appendSetupAudit } from './setup-audit.js'
+import { createJobRunner } from './setup-job.js'
 import { installRecipe } from './tool-install.js'
 
 /**
@@ -23,11 +23,8 @@ import { installRecipe } from './tool-install.js'
 
 const PLAN_TTL_MS = 2 * 60 * 1000
 const PLAN_ID_RE = /^ins-\d{13}-[0-9a-f]{8}$/
-const JOB_ID_RE = /^ins-\d{13}-[0-9a-f]{8}$/
 const STEP_TIMEOUT_MS = 20 * 60 * 1000
-const MAX_OUTPUT_CHARS = 300 * 1024
 const MAX_PROGRAMS = 20
-const KILL_GRACE_MS = 3000
 
 /** 導入に使えるもの。これ以外は動かしません。 */
 export const INSTALLERS = Object.freeze(['brew', 'go'])
@@ -55,6 +52,7 @@ export function installerSearchPaths(env = process.env, home = os.homedir()) {
  * @param {number} [opts.stepTimeoutMs]
  * @param {Set<string>} [opts.allowed]   入れてよいツール（既定は実行を許可したもの）
  * @param {(program: string) => {brew: string|null, go: string|null}} [opts.recipe]  入れ方（テストの差し替え用）
+ * @param {object} [opts.runner]  時間のかかる作業を動かす仕組み（ワードリストの取得と共有します）
  */
 export function createInstall(opts = {}) {
   const cfg = {
@@ -63,12 +61,11 @@ export function createInstall(opts = {}) {
     now: opts.now || (() => new Date()),
     stepTimeoutMs: opts.stepTimeoutMs ?? STEP_TIMEOUT_MS,
     allowed: opts.allowed || ALLOWED,
-    killGraceMs: opts.killGraceMs ?? KILL_GRACE_MS,
     recipe: opts.recipe || installRecipe,
   }
+  // 作業を動かす仕組みは、ワードリストの取得と 1 つを分け合います（同時に動くのは 1 件）。
+  const runner = opts.runner || createJobRunner({ now: cfg.now, killGraceMs: opts.killGraceMs })
   const plans = new Map()
-  let job = null // 直近の 1 件だけ持ちます（同時に動かすのは 1 つ）
-  let child = null
 
   const searchPaths = () => cfg.searchPaths || installerSearchPaths(cfg.env)
   const home = () => cfg.env.HOME || os.homedir()
@@ -159,29 +156,6 @@ export function createInstall(opts = {}) {
 
   /* ---------------- 実行 ---------------- */
 
-  function appendOutput(text) {
-    if (!job) return
-    job.output += text
-    if (job.output.length > MAX_OUTPUT_CHARS) {
-      job.dropped = true
-      job.output = job.output.slice(job.output.length - MAX_OUTPUT_CHARS)
-    }
-  }
-
-  /** 出力を 1 行ずつ整えて溜めます（端末の制御列と、\\r の進捗の上書きを畳みます）。 */
-  function reader(stream) {
-    let rest = ''
-    stream.setEncoding('utf8')
-    stream.on('data', (chunk) => {
-      const parts = (rest + chunk).split('\n')
-      rest = parts.pop() ?? ''
-      for (const line of parts) appendOutput(`${cleanLine(line)}\n`)
-      // 進捗の 1 行（改行が来ないもの）は、溜まりすぎないうちに畳んで出します
-      if (rest.length > 4096) { appendOutput(`${cleanLine(rest)}\n`); rest = '' }
-    })
-    stream.on('end', () => { if (rest) appendOutput(`${cleanLine(rest)}\n`) })
-  }
-
   /** 導入のときの環境。実行より少し広く、ネットワークとプロキシの設定を渡します。 */
   function installEnv(installerPath) {
     const base = cfg.env
@@ -204,46 +178,6 @@ export function createInstall(opts = {}) {
     return env
   }
 
-  /** 1 つ分を動かします。終わるまで待ちます。 */
-  function runStep(s, installerPath) {
-    return new Promise((resolve) => {
-      let timer = null
-      let killed = false
-      const proc = spawn(installerPath, s.argv, {
-        cwd: home(), env: installEnv(installerPath), stdio: ['ignore', 'pipe', 'pipe'], shell: false, detached: true,
-      })
-      child = proc
-      reader(proc.stdout)
-      reader(proc.stderr)
-      const done = (patch) => {
-        if (timer) clearTimeout(timer)
-        child = null
-        Object.assign(s, patch)
-        resolve()
-      }
-      timer = setTimeout(() => {
-        killed = true
-        appendOutput(`\n[${cfg.stepTimeoutMs / 60000} 分を過ぎたので止めます]\n`)
-        stopChild(proc)
-      }, cfg.stepTimeoutMs)
-      proc.on('error', (err) => done({ status: 'failed', error: String(err?.message || err) }))
-      proc.on('close', (code, signal) => {
-        if (killed) return done({ status: 'timeout', exitCode: code, error: '時間切れで止めました' })
-        if (job?.stopping) return done({ status: 'stopped', exitCode: code, error: '中止しました' })
-        if (code === 0) return done({ status: 'done', exitCode: 0 })
-        done({ status: 'failed', exitCode: code, error: signal ? `${signal} で終わりました` : `終了コード ${code}` })
-      })
-    })
-  }
-
-  /** プロセスの集まり（グループ）に終了を頼み、残っていたら止めます。 */
-  function stopChild(proc) {
-    const pgid = proc.pid
-    const signal = (sig) => { try { process.kill(-pgid, sig) } catch { try { proc.kill(sig) } catch { /* もう終わっています */ } } }
-    signal('SIGTERM')
-    setTimeout(() => { if (!proc.killed && proc.exitCode === null) signal('SIGKILL') }, cfg.killGraceMs).unref?.()
-  }
-
   /**
    * 導入を始めます。デスクトップ版のメインプロセスからだけ呼びます。
    * confirm はネイティブの確認（省略すると確認なしで進むため、呼ぶ側が必ず渡します）。
@@ -256,7 +190,7 @@ export function createInstall(opts = {}) {
     plans.delete(id)
     if (!p) throw new ExecError(410, 'NO_PLAN', '導入の計画が見つかりません（時間が経ちました）。もう一度お試しください')
     if (p.at < cfg.now().getTime() - PLAN_TTL_MS) throw new ExecError(410, 'PLAN_EXPIRED', '導入の計画の期限が切れました。もう一度お試しください')
-    if (job && job.status === 'running') throw new ExecError(409, 'BUSY', 'いま別の導入が動いています')
+    if (runner.busy()) throw new ExecError(409, 'BUSY', 'いま別の作業が動いています')
 
     // 計画を作ってから、置き場所が差し替わっていないか見ます。
     const fresh = resolveInstaller(p.via)
@@ -268,67 +202,20 @@ export function createInstall(opts = {}) {
       return { ok: false, cancelled: true }
     }
 
-    job = {
+    const env = installEnv(p.installerPath)
+    return runner.start({
       jobId: id,
-      via: p.via,
-      viaLabel: VIA_LABEL[p.via],
-      installerPath: p.installerPath,
-      steps: p.steps,
-      status: 'running',
-      startedAt: cfg.now().toISOString(),
-      endedAt: null,
-      output: '',
-      dropped: false,
-      stopping: false,
-    }
-    appendSetupAudit('setup.install.start', { jobId: id, via: p.via, installerPath: p.installerPath, commands: p.steps.map((s) => s.command) }, cfg.now())
-
-    // 待たずに返します（画面は状態を見に来ます）。
-    void (async () => {
-      for (const s of job.steps) {
-        if (job.stopping) { s.status = 'stopped'; s.error = '中止しました'; continue }
-        s.status = 'running'
-        appendOutput(`\n$ ${s.command}\n`)
-        await runStep(s, job.installerPath)
-      }
-      job.status = job.stopping ? 'stopped' : job.steps.every((s) => s.status === 'done') ? 'done' : 'failed'
-      job.endedAt = cfg.now().toISOString()
-      appendSetupAudit('setup.install.end', {
-        jobId: job.jobId, status: job.status,
-        results: job.steps.map((s) => ({ program: s.program, status: s.status, exitCode: s.exitCode })),
-      }, cfg.now())
-    })()
-
-    return { ok: true, jobId: id }
+      kind: 'setup.install',
+      title: `${VIA_LABEL[p.via]} で入れています`,
+      audit: { via: p.via, installerPath: p.installerPath, commands: p.steps.map((s) => s.command) },
+      steps: p.steps.map((s) => ({
+        key: s.program,
+        label: s.program,
+        command: s.command,
+        spawn: { program: p.installerPath, argv: s.argv, env, cwd: home(), timeoutMs: cfg.stepTimeoutMs },
+      })),
+    })
   }
-
-  /** 中止。残りの手順も動かしません。 */
-  function stop(jobId) {
-    const id = String(jobId || '')
-    if (!JOB_ID_RE.test(id) || !job || job.jobId !== id) throw new ExecError(404, 'NO_JOB', 'その導入はありません')
-    if (job.status !== 'running') return publicJob()
-    job.stopping = true
-    if (child) stopChild(child)
-    return publicJob()
-  }
-
-  /** 画面に見せる形。出力は溜めたぶんをそのまま返します（画面が上限を持ちます）。 */
-  function publicJob() {
-    if (!job) return null
-    return {
-      jobId: job.jobId,
-      via: job.via,
-      viaLabel: job.viaLabel,
-      status: job.status,
-      startedAt: job.startedAt,
-      endedAt: job.endedAt,
-      steps: job.steps.map((s) => ({ program: s.program, command: s.command, status: s.status, exitCode: s.exitCode, error: s.error })),
-      output: (job.dropped ? '[表示の上限を超えたため、先頭の出力を省略しました]\n' : '') + job.output,
-    }
-  }
-
-  /** いま動いているもの（または直近の 1 件）。無ければ null。 */
-  const current = () => publicJob()
 
   /** テスト用の差し替え口。同じプロセスのコードからだけ呼べます。 */
   function configure(patch) {
@@ -338,10 +225,5 @@ export function createInstall(opts = {}) {
     }
   }
 
-  /** 終了時の後始末。動いているものがあれば止めます。 */
-  async function killAll() {
-    if (job?.status === 'running') { job.stopping = true; if (child) stopChild(child) }
-  }
-
-  return { installers, unsafePaths, plan, start, stop, current, configure, killAll, resolveInstaller }
+  return { installers, unsafePaths, plan, start, configure, resolveInstaller }
 }
