@@ -1,0 +1,29 @@
+/*
+ * ホームの「脆弱性スコア」と「テクノロジー」の色（PR #1 より前の版）。
+ * この 2 枚のカードだけに使い、ほかの画面は tokens.css の配色のままにします。
+ * 以前の版はライトのみでしたが、塗りの面と白文字の組なのでダークでも同じ値を使います。
+ * 色の直書きはこのファイルだけに置きます（scripts/check-colors.mjs の例外）。
+ */
+:root {
+  /* 深刻度（CVSS 区分に対応する状態色） */
+  --dash-sev-critical: #890101;
+  --dash-sev-high: #ec0000;
+  --dash-sev-medium: #cd820a;
+  --dash-sev-low: #264af4;
+  --dash-sev-info: #949497;
+  --dash-on-sev: #ffffff;
+
+  /* 技術スタックの内訳 */
+  --dash-cat-1: #2a78d6;
+  --dash-cat-2: #eb6834;
+  --dash-cat-3: #1baf7a;
+  --dash-cat-4: #eda100;
+  --dash-cat-5: #e87ba4;
+  --dash-cat-other: #b4b4b7;
+}
+
+/* 件数カードの印（丸に「!」） */
+.sev-dot {
+  width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--dash-on-sev); font-size: 12px; font-weight: 700; line-height: 1;
+}
