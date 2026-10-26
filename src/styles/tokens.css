@@ -86,10 +86,10 @@
   --app-on-sev-critical: #FFFFFF;
   --app-sev-critical-border: #850000;
   --app-sev-critical-text: #850000;
-  --app-sev-high: #CE0000;
+  --app-sev-high: #AC3E00;
   --app-on-sev-high: #FFFFFF;
-  --app-sev-high-border: #CE0000;
-  --app-sev-high-text: #CE0000;
+  --app-sev-high-border: #AC3E00;
+  --app-sev-high-text: #AC3E00;
   --app-sev-medium: #B78F00;
   --app-on-sev-medium: #1A1A1A;
   --app-sev-medium-border: #927200;
@@ -144,14 +144,14 @@
     --app-on-inverse-surface: #1A1A1A;
 
     /* 深刻度（面・面の上の文字・枠・色付きの文字） */
-    --app-sev-critical: #FE3939;
-    --app-on-sev-critical: #1A1A1A;
+    --app-sev-critical: #FA0000;
+    --app-on-sev-critical: #000000;
     --app-sev-critical-border: #FF7171;
     --app-sev-critical-text: #FF7171;
-    --app-sev-high: #FF9696;
+    --app-sev-high: #FF8D44;
     --app-on-sev-high: #1A1A1A;
-    --app-sev-high-border: #FF9696;
-    --app-sev-high-text: #FF9696;
+    --app-sev-high-border: #FF8D44;
+    --app-sev-high-text: #FF8D44;
     --app-sev-medium: #FFD43D;
     --app-on-sev-medium: #1A1A1A;
     --app-sev-medium-border: #FFD43D;
@@ -206,14 +206,14 @@
   --app-on-inverse-surface: #1A1A1A;
 
   /* 深刻度（面・面の上の文字・枠・色付きの文字） */
-  --app-sev-critical: #FE3939;
-  --app-on-sev-critical: #1A1A1A;
+  --app-sev-critical: #FA0000;
+  --app-on-sev-critical: #000000;
   --app-sev-critical-border: #FF7171;
   --app-sev-critical-text: #FF7171;
-  --app-sev-high: #FF9696;
+  --app-sev-high: #FF8D44;
   --app-on-sev-high: #1A1A1A;
-  --app-sev-high-border: #FF9696;
-  --app-sev-high-text: #FF9696;
+  --app-sev-high-border: #FF8D44;
+  --app-sev-high-text: #FF8D44;
   --app-sev-medium: #FFD43D;
   --app-on-sev-medium: #1A1A1A;
   --app-sev-medium-border: #FFD43D;

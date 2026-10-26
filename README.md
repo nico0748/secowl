@@ -415,7 +415,7 @@ Templater 構文（`<% %>`）をアプリ用の `{{ }}` に置き換え、偵察
 | 下地 / カード | Solid Gray 100 / 白 | Solid Gray 950 / 900 |
 | 本文 / 補助 / 注記 | Solid Gray 900 / 700 / 600 | Solid Gray 50 / 200 / 300 |
 | 基調色 | Blue 900 `#0017C1` | Blue 300 `#9DB7F9` |
-| 緊急 / 重要 | Red 1100 / Red 900 | Red 600 / Red 300 |
+| 緊急 / 重要 | Red 1100 / Orange 900 | Red 700 / Orange 400 |
 | 警告 / 注意 / なし | Yellow 700 / Blue 700 / Solid Gray 600 | Yellow 300 / Blue 400 / Solid Gray 500 |
 
 値は手で書かず、`npm run tokens`（`scripts/gen-tokens/gen_tokens.py`）で作り直します。
