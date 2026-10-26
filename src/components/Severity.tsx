@@ -1,7 +1,7 @@
 import type { SeverityKey } from '../types'
 
 /**
- * 深刻度の表示部品。色だけに頼らず、形（■▲◆●○）と頭文字でも区別できるようにします。
+ * 深刻度の表示部品。ピルは色と文字で、チップと件数カードは形（■▲◆●○）と頭文字でも区別できるようにします。
  * 形は 22×22 の viewBox。色は .sev-* クラスが --sev-bg（面）と --sev-on（文字）を組で当てます。
  */
 export const SEV_JA: Record<SeverityKey, string> = {
@@ -24,7 +24,7 @@ function Shape({ value }: { value: SeverityKey }) {
   }
 }
 
-/** 形だけの小さなアイコン（ピル・チップ用。頭文字は入れない） */
+/** 形だけの小さなアイコン（チップ用。頭文字は入れない） */
 export function SevIcon({ value, size = 11 }: { value: SeverityKey; size?: number }) {
   return (
     <svg className={`sev-icon sev-${value}`} width={size} height={size} viewBox="0 0 22 22" aria-hidden="true" focusable="false">
@@ -43,11 +43,10 @@ export function SeverityBadge({ value, size = 22 }: { value: SeverityKey; size?:
   )
 }
 
-/** 塗りのピル。Info だけは枠のみ（面なし）。 */
+/** 塗りのピル（形のアイコンは付けない）。Info だけは枠のみ（面なし）。 */
 export function SeverityPill({ value }: { value: SeverityKey }) {
   return (
     <span className={`sev-pill sev-${value}`}>
-      <SevIcon value={value} />
       {value.toUpperCase()}・{SEV_JA[value]}
     </span>
   )
