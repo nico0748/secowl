@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Dialog } from './Dialog'
-import type { InstallJob, InstallPlan, InstallStepStatus, SetupFixPlan, SetupInstaller, SetupProgram, SetupReport } from '../types'
+import type { InstallPlan, SetupFixPlan, SetupInstaller, SetupJob, SetupProgram, SetupReport, SetupStepStatus, WordlistFile, WordlistPlan, WordlistReport } from '../types'
 
 /** コマンドを 1 行で見せ、クリップボードへ写せるようにします。 */
 function CommandLine({ value, note, children }: { value: string; note?: string; children?: React.ReactNode }) {
@@ -33,10 +33,10 @@ function CommandLine({ value, note, children }: { value: string; note?: string; 
 
 const STATE_LABEL: Record<SetupProgram['state'], string> = { ok: '使える', missing: '入っていない', unsafe: '実行不可' }
 const STATE_CLASS: Record<SetupProgram['state'], string> = { ok: 'ok', missing: '', unsafe: 'ng' }
-const STEP_LABEL: Record<InstallStepStatus, string> = {
-  pending: '待っています', running: '入れています', done: '入りました', failed: '失敗しました', stopped: '中止しました', timeout: '時間切れ',
+const STEP_LABEL: Record<SetupStepStatus, string> = {
+  pending: '待っています', running: '進めています', done: '終わりました', failed: '失敗しました', stopped: '中止しました', timeout: '時間切れ',
 }
-const STEP_CLASS: Record<InstallStepStatus, string> = { pending: '', running: '', done: 'ok', failed: 'ng', stopped: 'warn', timeout: 'warn' }
+const STEP_CLASS: Record<SetupStepStatus, string> = { pending: '', running: '', done: 'ok', failed: 'ng', stopped: 'warn', timeout: 'warn' }
 
 function ProgramRow({ p, onInstall, busy }: {
   p: SetupProgram
@@ -182,21 +182,20 @@ function InstallDialog({ plan, onClose, onStarted }: {
   )
 }
 
-/** 導入の進み具合と出力。終わるまで少しずつ見に行きます。 */
-function InstallProgress({ job, onStop, onClose }: { job: InstallJob; onStop: () => void; onClose: () => void }) {
+/** 時間のかかる作業（導入・ワードリストの取得）の進み具合と出力。 */
+function JobProgress({ job, onStop, onClose }: { job: SetupJob; onStop: () => void; onClose: () => void }) {
   const box = useRef<HTMLPreElement>(null)
   useEffect(() => { const el = box.current; if (el) el.scrollTop = el.scrollHeight }, [job.output])
   const running = job.status === 'running'
   const okCount = job.steps.filter((s) => s.status === 'done').length
+  const ngCount = job.steps.filter((s) => s.status === 'failed' || s.status === 'timeout').length
 
   return (
     <div className="setup-install">
       <div className="setup-row-head">
-        <span className="setup-name">{running ? `${job.viaLabel} で入れています` : `${job.viaLabel} での導入が終わりました`}</span>
-        <span className="tag verdict ok">{`入りました ${okCount}`}</span>
-        {job.steps.filter((s) => s.status === 'failed' || s.status === 'timeout').length > 0 && (
-          <span className="tag verdict ng">{`失敗 ${job.steps.filter((s) => s.status === 'failed' || s.status === 'timeout').length}`}</span>
-        )}
+        <span className="setup-name">{running ? job.title : job.title.replace(/しています$/, 'しました')}</span>
+        <span className="tag verdict ok">{`終わりました ${okCount}`}</span>
+        {ngCount > 0 && <span className="tag verdict ng">{`失敗 ${ngCount}`}</span>}
         <div className="run-head-actions">
           {running
             ? <button className="btn quiet small" onClick={onStop}>中止する</button>
@@ -205,14 +204,112 @@ function InstallProgress({ job, onStop, onClose }: { job: InstallJob; onStop: ()
       </div>
       <div className="setup-steps">
         {job.steps.map((s) => (
-          <div key={s.program} className="setup-step">
-            <code>{s.command}</code>
+          <div key={s.key} className="setup-step">
+            <code>{s.command ?? s.label}</code>
             <span className={`tag verdict ${STEP_CLASS[s.status]}`}>{STEP_LABEL[s.status]}</span>
             {s.error && <span className="setup-cmd-note">{s.error}</span>}
           </div>
         ))}
       </div>
-      <pre className="run-output" ref={box} aria-label="導入の出力">{job.output || '出力を待っています…'}</pre>
+      <pre className="run-output" ref={box} aria-label="作業の出力">{job.output || '出力を待っています…'}</pre>
+    </div>
+  )
+}
+
+const WL_LABEL: Record<WordlistFile['state'], string> = { ok: 'あります', missing: 'ありません', changed: '中身が違います', other: '確かめられません' }
+const WL_CLASS: Record<WordlistFile['state'], string> = { ok: 'ok', missing: '', changed: 'warn', other: 'warn' }
+const kb = (n: number) => `${Math.round(n / 1024).toLocaleString('ja-JP')} KB`
+
+/** 取得する前の確認。押すと、さらにデスクトップ版のネイティブの確認が出ます。 */
+function WordlistDialog({ plan, onClose, onStarted }: {
+  plan: WordlistPlan
+  onClose: () => void
+  onStarted: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { cancelRef.current?.focus({ preventScroll: true }) }, [])
+
+  const go = async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await api.wordlistStart(plan.planId)
+      if (res.ok) { onStarted(); return }
+      if (res.cancelled) { onClose(); return }
+      setErr(res.error || '始められませんでした。')
+    } catch (e) {
+      setErr(String((e as Error).message))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog title="取得する前の確認" onClose={onClose} wide>
+      <p className="dialog-text">
+        {plan.full
+          ? `${plan.source.name}（タグ ${plan.source.tag}）の全体を取得します。1GB 以上になります。`
+          : `${plan.files.length} 本のワードリストを取得します。取ったあとに中身のハッシュを照合し、合わなければ保存しません。`}
+      </p>
+      <div className="setup-fix-list">
+        {plan.files.map((f) => <div key={f.id} className="setup-fix-row"><code>{f.url}</code><span className="setup-fix-mode">{kb(f.bytes)}</span></div>)}
+        {plan.full && <div className="setup-fix-row"><code>{plan.full.command}</code></div>}
+      </div>
+      <dl className="run-facts">
+        <dt>置き場所</dt>
+        <dd><code>{plan.full ? plan.full.dir : plan.dir}</code></dd>
+        <dt>出どころ</dt>
+        <dd>{plan.source.name}（{plan.source.repo}、タグ {plan.source.tag}）</dd>
+      </dl>
+      {err && <div className="banner error"><p className="banner-text">{err}</p></div>}
+      <p className="hint-text">「取得する」を押すと、同じ内容がもう一度 OS の確認ダイアログに出ます。そこで許可するまで、何も始まりません。</p>
+      <div className="dialog-actions">
+        <button ref={cancelRef} className="btn quiet" onClick={onClose} disabled={busy}>キャンセル</button>
+        <button className="btn" onClick={() => void go()} disabled={busy}>{busy ? '確認を待っています…' : '取得する'}</button>
+      </div>
+    </Dialog>
+  )
+}
+
+/** 探索用ワードリスト。ホームフォルダの wordlists/ に置きます。 */
+function WordlistSection({ data, busy, onGet }: {
+  data: WordlistReport
+  busy: boolean
+  onGet: (input: { ids?: string[]; full?: boolean }) => void
+}) {
+  const need = data.files.filter((f) => f.state !== 'ok').map((f) => f.id)
+  return (
+    <div className="setup-wordlists">
+      <div className="setup-row-head">
+        <span className="setup-name">ワードリスト</span>
+        {need.length === 0
+          ? <span className="tag verdict ok">そろっています</span>
+          : <span className="tag verdict">{`ありません ${need.length}`}</span>}
+        <span className="setup-path">{data.dir}</span>
+        <div className="run-head-actions">
+          {need.length > 0 && (
+            <button className="btn small" onClick={() => onGet({ ids: need })} disabled={busy}>{`${need.length} 本を取得する`}</button>
+          )}
+          {!data.full.present && (
+            <button className="btn quiet small" onClick={() => onGet({ full: true })} disabled={busy}>SecLists 全体も取得する</button>
+          )}
+        </div>
+      </div>
+      <p className="setup-why">
+        {`${data.source.name}（${data.source.license}、タグ ${data.source.tag}）から取ります。取ったあとに中身のハッシュを照合します。`}
+        {data.full.present ? ` 全体は ${data.full.dir} にあります。` : ' 全体（1GB 以上）は、必要になってからで十分です。'}
+      </p>
+      <div className="setup-steps">
+        {data.files.map((f) => (
+          <div key={f.id} className="setup-step">
+            <code>{f.saveAs}</code>
+            <span className={`tag verdict ${WL_CLASS[f.state]}`}>{WL_LABEL[f.state]}</span>
+            <span className="setup-cmd-note">{`${f.name}・${f.lines.toLocaleString('ja-JP')} 行・${f.use}`}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -240,26 +337,29 @@ export function SetupPanel() {
   const [open, setOpen] = useState(false)
   const [fixPlan, setFixPlan] = useState<SetupFixPlan | null>(null)
   const [insPlan, setInsPlan] = useState<InstallPlan | null>(null)
+  const [wlPlan, setWlPlan] = useState<WordlistPlan | null>(null)
   const [planning, setPlanning] = useState(false)
-  const [job, setJob] = useState<InstallJob | null>(null)
+  const [job, setJob] = useState<SetupJob | null>(null)
   const { data, error, loading } = useAsync<SetupReport>(() => api.setupReport(), [tick])
+  const { data: wl } = useAsync<WordlistReport>(() => api.wordlists(), [tick])
 
   const reload = useCallback(() => setTick((n) => n + 1), [])
 
   // 画面を開き直したあとも、動いている導入を拾えるようにします。
-  useEffect(() => { void api.installJob().then(setJob).catch(() => { /* まだありません */ }) }, [])
+  useEffect(() => { void api.setupJob().then(setJob).catch(() => { /* まだありません */ }) }, [])
 
   // 動いているあいだだけ、少しずつ状態を見に行きます。
   const running = job?.status === 'running'
   useEffect(() => {
     if (!running) return
     const t = window.setInterval(() => {
-      void api.installJob().then((j) => {
+      void api.setupJob().then((j) => {
         setJob(j)
         if (j && j.status !== 'running') {
           const ok = j.steps.filter((s) => s.status === 'done').length
           const ng = j.steps.length - ok
-          notify(ng > 0 ? `${ok} 個を入れ、${ng} 個は入りませんでした。` : `${ok} 個のツールを入れました。`)
+          const what = j.kind === 'setup.wordlists' ? 'ワードリスト' : 'ツール'
+          notify(ng > 0 ? `${ok} 件の${what}を取り終え、${ng} 件は失敗しました。` : `${ok} 件の${what}を用意しました。`)
           reload()
           bump()
         }
@@ -290,9 +390,20 @@ export function SetupPanel() {
     }
   }
 
+  const startWordlists = async (input: { ids?: string[]; full?: boolean }) => {
+    setPlanning(true)
+    try {
+      setWlPlan(await api.wordlistPlan(input))
+    } catch (e) {
+      notify(String((e as Error).message))
+    } finally {
+      setPlanning(false)
+    }
+  }
+
   const stop = async () => {
     try {
-      setJob(await api.installStop(job!.jobId))
+      setJob(await api.setupJobStop(job!.jobId))
     } catch (e) {
       notify(String((e as Error).message))
     }
@@ -337,7 +448,7 @@ export function SetupPanel() {
         </div>
       )}
 
-      {job && <InstallProgress job={job} onStop={() => void stop()} onClose={() => setJob(null)} />}
+      {job && <JobProgress job={job} onStop={() => void stop()} onClose={() => setJob(null)} />}
 
       {missing + unsafe === 0 ? (
         <p className="setup-lead">{`${ok} 個のコマンドがすべて使えます。`}</p>
@@ -370,6 +481,8 @@ export function SetupPanel() {
         ))}
       </div>
 
+      {wl && <WordlistSection data={wl} busy={busy} onGet={(input) => void startWordlists(input)} />}
+
       <div className="setup-foot">
         {ok > 0 && (
           <button className="btn quiet small" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -387,11 +500,18 @@ export function SetupPanel() {
           onDone={(msg) => { setFixPlan(null); notify(msg); reload(); bump() }}
         />
       )}
+      {wlPlan && (
+        <WordlistDialog
+          plan={wlPlan}
+          onClose={() => setWlPlan(null)}
+          onStarted={() => { setWlPlan(null); void api.setupJob().then(setJob).catch(() => { /* 次の回で拾います */ }) }}
+        />
+      )}
       {insPlan && (
         <InstallDialog
           plan={insPlan}
           onClose={() => setInsPlan(null)}
-          onStarted={() => { setInsPlan(null); void api.installJob().then(setJob).catch(() => { /* 次の回で拾います */ }) }}
+          onStarted={() => { setInsPlan(null); void api.setupJob().then(setJob).catch(() => { /* 次の回で拾います */ }) }}
         />
       )}
     </div>

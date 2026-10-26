@@ -4,7 +4,7 @@
  * アプリ本体には、環境変数や HTTP でこの差し替えを受ける口はありません（同じプロセスのコードだけが configure を呼べます）。
  */
 import fs from 'node:fs'
-import { execService, installService, setupService } from '../../server/app.js'
+import { execService, installService, setupService, wordlistService } from '../../server/app.js'
 
 const cfg = JSON.parse(fs.readFileSync(process.env.SECOWL_E2E_CONFIG, 'utf8'))
 execService.configure({
@@ -20,5 +20,7 @@ execService.configure({
 const recipe = (program) => cfg.recipes?.[program] || { brew: null, go: null }
 setupService.configure({ allowed: new Set(cfg.allowed), recipe })
 installService.configure({ allowed: new Set(cfg.allowed), searchPaths: cfg.installerPaths || [], recipe })
-globalThis.__secowlTest = { execService, installService, setupService, confirms: [] }
+// ワードリストの取得元も代役に差し替えます（本物の GitHub には触れません）。
+wordlistService.configure({ raw: cfg.wordlistRaw, catalog: cfg.wordlistCatalog })
+globalThis.__secowlTest = { execService, installService, setupService, wordlistService, confirms: [] }
 await import('../../electron/main.js')
