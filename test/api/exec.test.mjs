@@ -148,8 +148,9 @@ test('セッション鍵が無い・誤りなら 403、正しければ通る。�
 
 test('導入の点検は鍵つきの GET で返り、直す場所が無ければ計画は作れない', { skip: SKIP }, async () => {
   app.setHostBridge({ execSession: KEY })
-  // 点検の対象を、テスト用の偽のツール 2 つに絞ります（本物の Homebrew は見ません）。
+  // 点検の対象を、テスト用の偽のツール 2 つに絞ります（このPCに入っている本物の Homebrew は見ません）。
   app.setupService.configure({ allowed: new Set(['fakenmap', 'fakehttpx']) })
+  app.installService.configure({ searchPaths: [] })
   exec.configure({ allowed: new Set(['fakenmap', 'fakehttpx']), searchPaths: [bin] })
 
   assert.equal((await raw(srv.baseUrl, 'GET', '/api/exec/setup')).status, 403)
@@ -175,8 +176,24 @@ test('導入の点検は鍵つきの GET で返り、直す場所が無ければ
   assert.equal(miss.json.counts.missing, 1)
   assert.equal(miss.json.programs[0].install.brew, 'brew install ffuf')
 
+  // 導入に使うもの（brew・go）の置き場所が緩いときは、点検の「直す場所」に入ります。
+  const idir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'secowl-unsafe-brew-')))
+  fs.chmodSync(idir, 0o775)
+  fs.writeFileSync(path.join(idir, 'brew'), `#!${process.execPath}\nprocess.exit(0)\n`, { mode: 0o755 })
+  fs.chmodSync(path.join(idir, 'brew'), 0o755)
+  app.installService.configure({ searchPaths: [idir] })
+  app.setupService.configure({ roots: [fs.realpathSync(os.tmpdir())] })
+  const withBrew = await raw(srv.baseUrl, 'GET', '/api/exec/setup', { headers: auth })
+  assert.equal(withBrew.json.installers.find((i) => i.name === 'brew').state, 'unsafe')
+  assert.equal(withBrew.json.fixable, 1)
+  assert.equal(withBrew.json.fixes[0].path, idir)
+  // 点検したツールの数は変わらない（直す場所だけが増える）
+  assert.equal(withBrew.json.counts.missing, 1)
+  fs.rmSync(idir, { recursive: true, force: true })
+
   const { ALLOWED } = await import('../../server/lib/command-templates.js')
-  app.setupService.configure({ allowed: ALLOWED })
+  app.setupService.configure({ allowed: ALLOWED, roots: null })
+  app.installService.configure({ searchPaths: [] })
   exec.configure({ allowed: new Set(['fakenmap', 'fakehttpx']), searchPaths: [bin] })
 })
 
