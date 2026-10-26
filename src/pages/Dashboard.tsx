@@ -2,7 +2,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync, useStore } from '../state'
 import { Donut } from '../components/Donut'
-import { SeverityBadge } from '../components/Severity'
 import { NoEngagement } from './shared'
 import type { Progress } from '../types'
 
@@ -11,9 +10,8 @@ const PHASE_ROUTE: Record<string, string> = {
 }
 const STATE_LABEL: Record<string, string> = { todo: '未着手', doing: '進行中', done: '完了' }
 
-// 技術スタックのカテゴリ色。深刻度の色と色覚多様性の条件で近いものがあるため、
-// カテゴリと深刻度を同じグラフ・同じ凡例に並べないこと（loop/r2-color.md §7）。
-const CAT_COLORS = ['var(--app-cat-1)', 'var(--app-cat-2)', 'var(--app-cat-3)', 'var(--app-cat-4)', 'var(--app-cat-5)']
+// 技術スタックのカテゴリ色（PR #1 より前の版。値は styles/dashboard-legacy.css）。
+const CAT_COLORS = ['var(--dash-cat-1)', 'var(--dash-cat-2)', 'var(--dash-cat-3)', 'var(--dash-cat-4)', 'var(--dash-cat-5)']
 
 export function DashboardPage() {
   const { current, revision } = useStore()
@@ -36,9 +34,9 @@ export function DashboardPage() {
   const restCount = tech.slice(5).reduce((a, t) => a + t.count, 0)
   const techSlices = [
     ...topTech.map((t, i) => ({ key: t.name, label: t.name, value: t.count, color: CAT_COLORS[i] })),
-    ...(restCount > 0 ? [{ key: '__other', label: `その他 ${tech.length - 5} 件`, value: restCount, color: 'var(--app-cat-other)' }] : []),
+    ...(restCount > 0 ? [{ key: '__other', label: `その他 ${tech.length - 5} 件`, value: restCount, color: 'var(--dash-cat-other)' }] : []),
   ]
-  const sevSlices = data.severity.map((s) => ({ key: s.key, label: s.ja, value: s.count, color: `var(--app-sev-${s.key})` }))
+  const sevSlices = data.severity.map((s) => ({ key: s.key, label: s.ja, value: s.count, color: `var(--dash-sev-${s.key})` }))
 
   return (
     <>
@@ -131,7 +129,7 @@ export function DashboardPage() {
             <div className="sev-cards">
               {data.severity.map((s) => (
                 <button key={s.key} className="sev-card" onClick={() => nav(`/findings?severity=${s.key}`)}>
-                  <SeverityBadge value={s.key} />
+                  <span className="sev-dot" style={{ background: `var(--dash-sev-${s.key})` }} aria-hidden="true">!</span>
                   <span className="sev-name">{s.label}</span>
                   <span className="sev-count">{s.count}</span>
                   <span style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>{s.ja}</span>
