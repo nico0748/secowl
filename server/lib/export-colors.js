@@ -1,31 +1,31 @@
 /**
  * 書き出し（共有バンドル HTML・印刷用 HTML・docx）の配色。
  * 書き出しは紙と他人の画面で読まれるため、アプリのテーマに関係なく常にライトです。
- * 値は src/styles/tokens.css の Light の値（--app-* / --md-sys-color-*）と同じです。tokens.css を作り直したら合わせてください。
+ * 値は src/styles/tokens.css の Light の値（--app-*）と同じです。tokens.css を作り直したら合わせてください。
  */
 export const EXPORT_COLORS = {
-  bg: '#EFEDF1', // --app-bg
+  bg: '#E6E6E6', // --app-bg（Solid Gray 100）
   card: '#FFFFFF', // --app-card
-  cardSub: '#F5F3F7', // --app-card-sub
-  text: '#1B1B1F', // --app-text
-  textSub: '#45464F', // --app-text-sub
-  textMuted: '#696A73', // --app-text-muted
-  border: '#C5C6D0', // --app-border（outline-variant）
-  borderStrong: '#757680', // --app-border-strong（outline）
-  primary: '#3158BA', // --app-primary
+  cardSub: '#F2F2F2', // --app-card-sub（Solid Gray 50）
+  text: '#1A1A1A', // --app-text（Solid Gray 900）
+  textSub: '#4D4D4D', // --app-text-sub（Solid Gray 700）
+  textMuted: '#666666', // --app-text-muted（Solid Gray 600）
+  border: '#CCCCCC', // --app-border（Solid Gray 200）
+  borderStrong: '#7F7F7F', // --app-border-strong（Solid Gray 500）
+  primary: '#0017C1', // --app-primary（Blue 900。キーカラー）
   onPrimary: '#FFFFFF', // --app-on-primary
-  selectedBg: '#DDE1F9', // --app-selected-bg
-  selectedText: '#414659', // --app-selected-text
-  warning: '#9D6E00', // --app-status-warning
+  selectedBg: '#E8F1FE', // --app-selected-bg（Blue 50）
+  selectedText: '#00118F', // --app-selected-text（Blue 1000）
+  warning: '#AC3E00', // --app-status-warning（Orange 900）
 }
 
 /** 深刻度。signal（面）・on（面の上の文字）・text（色付きの文字）・border（枠） */
 export const EXPORT_SEV = {
-  critical: { signal: '#75003C', on: '#FFFFFF', text: '#C3216D', border: '#75003C' },
-  high: { signal: '#B52700', on: '#FFFFFF', text: '#C3310B', border: '#B52700' },
-  medium: { signal: '#D87900', on: '#2E1500', text: '#9D5600', border: '#D87900' },
-  low: { signal: '#00627A', on: '#FFFFFF', text: '#00718E', border: '#00627A' },
-  info: { signal: '#87868A', on: '#1B1B1F', text: '#68686B', border: '#757680' },
+  critical: { signal: '#850000', on: '#FFFFFF', text: '#850000', border: '#850000' }, // Red 1100
+  high: { signal: '#CE0000', on: '#FFFFFF', text: '#CE0000', border: '#CE0000' }, // Red 900
+  medium: { signal: '#B78F00', on: '#1A1A1A', text: '#806300', border: '#927200' }, // Yellow 700 / 1000 / 900
+  low: { signal: '#264AF4', on: '#FFFFFF', text: '#0031D8', border: '#0031D8' }, // Blue 700 / 800
+  info: { signal: '#666666', on: '#FFFFFF', text: '#666666', border: '#666666' }, // Solid Gray 600
 }
 
 /** 色以外の手がかり（アプリの Severity.tsx と同じ形）。docx では記号の文字で代用します。 */
@@ -42,14 +42,16 @@ const SEV_SHAPE = {
 /** ピルの中に置く形（文字色で塗る）。Info は輪を info の色で描く。 */
 export function sevIconSvg(key, size = 11) {
   const c = EXPORT_SEV[key] || EXPORT_SEV.info
-  const fill = key === 'info' ? `fill="none" stroke="${c.signal}"` : 'fill="currentColor"'
+  const fill = key === 'info' ? `fill="none" stroke="${c.border}"` : 'fill="currentColor"'
   return `<svg width="${size}" height="${size}" viewBox="0 0 22 22" aria-hidden="true" style="flex:none"><g ${fill}>${SEV_SHAPE[key] || SEV_SHAPE.info}</g></svg>`
 }
 
 /** 形 ＋ 頭文字のバッジ（件数の箱）。 */
 export function sevBadgeSvg(key, size = 22) {
   const c = EXPORT_SEV[key] || EXPORT_SEV.info
-  const shape = key === 'info' ? `<g fill="none" stroke="${c.signal}">${SEV_SHAPE.info}</g>` : `<g fill="${c.signal}">${SEV_SHAPE[key]}</g>`
+  const shape = key === 'info'
+    ? `<g fill="none" stroke="${c.border}">${SEV_SHAPE.info}</g>`
+    : `<g fill="${c.signal}" stroke="${c.border}" stroke-width="1.2" paint-order="stroke">${SEV_SHAPE[key]}</g>`
   const y = key === 'high' ? 13.4 : 11.5
   const fs = { critical: 12, high: 10, medium: 10, low: 12, info: 11 }[key] || 11
   const letterColor = key === 'info' ? EXPORT_COLORS.text : c.on
@@ -64,11 +66,11 @@ export function sevPillHtml(key, label) {
   return `<span class="${cls}"${style}>${sevIconSvg(key)}${label}</span>`
 }
 
-/** 絞り込みボタンに置く形（signal 色。白い面の上で輪郭を付けてコントラストを保つ）。 */
+/** 絞り込みボタンに置く形（signal 色。枠色の輪郭を付けて、淡い段でも白い面から浮かせる）。 */
 export function sevChipIcon(key, size = 12) {
   const c = EXPORT_SEV[key] || EXPORT_SEV.info
   const g = key === 'info'
     ? `<g fill="none" stroke="${c.border}">${SEV_SHAPE.info}</g>`
-    : `<g fill="${c.signal}" stroke="${EXPORT_COLORS.textSub}" stroke-width="1.6" paint-order="stroke">${SEV_SHAPE[key]}</g>`
+    : `<g fill="${c.signal}" stroke="${c.border}" stroke-width="1.2" paint-order="stroke">${SEV_SHAPE[key]}</g>`
   return `<svg width="${size}" height="${size}" viewBox="0 0 22 22" aria-hidden="true" style="flex:none;overflow:visible">${g}</svg>`
 }

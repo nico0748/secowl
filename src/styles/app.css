@@ -109,7 +109,7 @@ a { color: var(--app-primary); }
 
 .avatar {
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container);
+  background: var(--app-selected-bg); color: var(--app-selected-text);
   display: grid; place-items: center; font-size: 14px; font-weight: 700;
 }
 
@@ -244,31 +244,29 @@ a { color: var(--app-primary); }
   border: 1px solid var(--app-border); color: var(--app-text-sub); background: var(--app-card-sub);
 }
 
-/* 深刻度の面と文字は必ず組で当てる（--sev-bg / --sev-on） */
-.sev-critical { --sev-bg: var(--app-sev-critical); --sev-on: var(--app-on-sev-critical); }
-.sev-high { --sev-bg: var(--app-sev-high); --sev-on: var(--app-on-sev-high); }
-.sev-medium { --sev-bg: var(--app-sev-medium); --sev-on: var(--app-on-sev-medium); }
-.sev-low { --sev-bg: var(--app-sev-low); --sev-on: var(--app-on-sev-low); }
-.sev-info { --sev-bg: var(--app-sev-info); --sev-on: var(--app-on-sev-info); }
+/* 深刻度の面・文字・枠は必ず組で当てる（--sev-bg / --sev-on / --sev-border） */
+.sev-critical { --sev-bg: var(--app-sev-critical); --sev-on: var(--app-on-sev-critical); --sev-border: var(--app-sev-critical-border); }
+.sev-high { --sev-bg: var(--app-sev-high); --sev-on: var(--app-on-sev-high); --sev-border: var(--app-sev-high-border); }
+.sev-medium { --sev-bg: var(--app-sev-medium); --sev-on: var(--app-on-sev-medium); --sev-border: var(--app-sev-medium-border); }
+.sev-low { --sev-bg: var(--app-sev-low); --sev-on: var(--app-on-sev-low); --sev-border: var(--app-sev-low-border); }
+.sev-info { --sev-bg: var(--app-sev-info); --sev-on: var(--app-on-sev-info); --sev-border: var(--app-sev-info-border); }
 
 .sev-pill {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 14px; font-weight: 700; padding: 0 10px; border-radius: 999px;
-  border: 1.5px solid var(--sev-bg);
+  border: 1.5px solid var(--sev-border);
   background: var(--sev-bg); color: var(--sev-on); white-space: nowrap;
 }
 /* Info は塗らない（枠だけ） */
-.sev-pill.sev-info { background: transparent; border-color: var(--app-sev-info-border); color: var(--app-text); }
+.sev-pill.sev-info { background: transparent; color: var(--app-text); }
 
-/* 深刻度の形（Severity.tsx。フィルタのチップと件数カード）。signal 色で塗る */
+/* 深刻度の形（Severity.tsx。フィルタのチップと件数カード）。signal 色で塗り、枠色で輪郭を付ける */
+/* 枠色はどの面の上でも 3:1 以上あるので、黄のように淡い段でも形の輪郭が残る */
 .sev-icon, .sev-badge { flex: none; display: block; overflow: visible; }
-.sev-shape { fill: var(--sev-bg); }
-.sev-shape.ring { fill: none; stroke: var(--app-sev-info); }
+.sev-shape { fill: var(--sev-bg); stroke: var(--sev-border); stroke-width: 1.2; paint-order: stroke; }
+.sev-shape.ring { fill: none; stroke: var(--sev-border); stroke-width: 1.6; }
 .sev-badge text { fill: var(--sev-on); font-weight: 700; font-family: inherit; }
 .sev-badge.sev-info text { fill: var(--app-text); }
-/* 地やチップの上に単独で置く形には、細い輪郭を付けて面とのコントラストを確保する */
-.chip .sev-shape:not(.ring) { stroke: var(--app-text-sub); stroke-width: 1.6; paint-order: stroke; }
-.chip .sev-shape.ring { stroke: var(--app-sev-info-border); }
 
 .filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); }
 .chip {
@@ -402,7 +400,7 @@ textarea { min-height: 120px; line-height: 1.7; resize: vertical; font-family: '
 
 .toast {
   position: fixed; right: var(--sp-5); bottom: var(--sp-5); z-index: 60;
-  background: var(--md-sys-color-inverse-surface); color: var(--md-sys-color-inverse-on-surface); padding: var(--sp-3) var(--sp-4);
+  background: var(--app-inverse-surface); color: var(--app-on-inverse-surface); padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius-sm); font-size: 14px; box-shadow: var(--app-elev-2);
 }
 
@@ -463,7 +461,7 @@ textarea { min-height: 120px; line-height: 1.7; resize: vertical; font-family: '
   margin: 0;
   padding: var(--sp-3) var(--sp-4);
   border-top: 1px solid var(--app-border);
-  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+  background: var(--app-info-bg); color: var(--app-info-text);
   font-size: 14px;
 }
 
@@ -489,7 +487,7 @@ textarea { min-height: 120px; line-height: 1.7; resize: vertical; font-family: '
 /* ---------------- ホームの進め方パネル ---------------- */
 
 .flow { margin-bottom: var(--sp-4); }
-.flow-next { margin: 0 0 var(--sp-3); padding: var(--sp-2) var(--sp-3); background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); border-radius: var(--radius-sm); font-size: 14px; }
+.flow-next { margin: 0 0 var(--sp-3); padding: var(--sp-2) var(--sp-3); background: var(--app-info-bg); color: var(--app-info-text); border-radius: var(--radius-sm); font-size: 14px; }
 
 .flow-steps {
   list-style: none;
@@ -562,7 +560,7 @@ textarea { min-height: 120px; line-height: 1.7; resize: vertical; font-family: '
 .tag.status-confirmed { border-color: var(--app-primary); color: var(--app-primary); background: var(--app-card); }
 .tag.status-reported { font-weight: 700; }
 .tag.status-fixed { color: var(--app-text-muted); }
-.tag.status-reopened { border-color: var(--md-sys-color-error); color: var(--md-sys-color-error); background: var(--app-card); }
+.tag.status-reopened { border-color: var(--app-status-error); color: var(--app-status-error); background: var(--app-card); }
 /* 証跡パネル */
 .evidence-note { font-size: 14px; color: var(--app-text-sub); margin-top: 0; }
 .dropzone {
