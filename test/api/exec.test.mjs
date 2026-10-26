@@ -87,6 +87,8 @@ test('ブラウザ運用（ホスト橋渡しなし）では、実行系のル�
   app.setHostBridge(null)
   for (const [method, p] of [
     ['GET', '/api/exec/templates'],
+    ['GET', '/api/exec/setup'],
+    ['POST', '/api/exec/setup/fix-plan'],
     ['POST', `/api/engagements/${E}/exec/plan`],
     ['GET', `/api/engagements/${E}/exec`],
     ['GET', `/api/engagements/${E}/exec/audit`],
@@ -136,6 +138,42 @@ test('セッション鍵が無い・誤りなら 403、正しければ通る。�
   assert.equal((await raw(srv.baseUrl, 'POST', `/api/engagements/no-such/exec/plan`, { headers: auth, body: {} })).status, 404)
   // CORS は入れない
   assert.equal(ok.headers['access-control-allow-origin'], undefined)
+})
+
+/* ---------------- 導入の点検 ---------------- */
+
+test('導入の点検は鍵つきの GET で返り、直す場所が無ければ計画は作れない', { skip: SKIP }, async () => {
+  app.setHostBridge({ execSession: KEY })
+  // 点検の対象を、テスト用の偽のツール 2 つに絞ります（本物の Homebrew は見ません）。
+  app.setupService.configure({ allowed: new Set(['fakenmap', 'fakehttpx']) })
+  exec.configure({ allowed: new Set(['fakenmap', 'fakehttpx']), searchPaths: [bin] })
+
+  assert.equal((await raw(srv.baseUrl, 'GET', '/api/exec/setup')).status, 403)
+  const r = await raw(srv.baseUrl, 'GET', '/api/exec/setup', { headers: auth })
+  assert.equal(r.status, 200)
+  assert.equal(r.json.counts.ok, 2)
+  assert.equal(r.json.counts.unsafe, 0)
+  assert.deepEqual(r.json.programs.map((p) => p.program), ['fakehttpx', 'fakenmap'])
+  assert.equal(r.json.programs[0].state, 'ok')
+  assert.equal(r.json.fixable, 0)
+
+  // 直す場所が無いときは計画を作らない（409）。実際に直すルートは HTTP に無い。
+  assert.equal((await raw(srv.baseUrl, 'POST', '/api/exec/setup/fix-plan', { headers: auth, body: {} })).status, 409)
+  for (const p of ['/api/exec/setup/fix', '/api/exec/setup/apply']) {
+    const bad = await raw(srv.baseUrl, 'POST', p, { headers: auth, body: { planId: 'x' } })
+    assert.ok([404, 403].includes(bad.status), `${p} → ${bad.status}`)
+  }
+
+  // 入っていないものには、入れ方のコマンドが付きます。
+  exec.configure({ searchPaths: [path.join(DATA(), 'no-such-bin')] })
+  app.setupService.configure({ allowed: new Set(['ffuf']) })
+  const miss = await raw(srv.baseUrl, 'GET', '/api/exec/setup', { headers: auth })
+  assert.equal(miss.json.counts.missing, 1)
+  assert.equal(miss.json.programs[0].install.brew, 'brew install ffuf')
+
+  const { ALLOWED } = await import('../../server/lib/command-templates.js')
+  app.setupService.configure({ allowed: ALLOWED })
+  exec.configure({ allowed: new Set(['fakenmap', 'fakehttpx']), searchPaths: [bin] })
 })
 
 /* ---------------- 値の検査と正規化 ---------------- */

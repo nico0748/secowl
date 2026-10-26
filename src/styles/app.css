@@ -795,6 +795,27 @@ textarea.scope-lines[aria-invalid='true'] { border-color: var(--app-status-error
 .run-row-actions { display: flex; gap: var(--sp-2); }
 .run-row-actions .btn { text-decoration: none; }
 
+/* このPCの状態（導入の点検） */
+.run-setup { margin-bottom: var(--sp-4); }
+.setup-lead { font-size: 14px; color: var(--app-text-sub); line-height: 1.7; margin: 0 0 var(--sp-3); }
+.setup-list { display: grid; gap: var(--sp-3); }
+.setup-row { display: grid; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--app-border); border-radius: var(--radius-sm); background: var(--app-card-sub); }
+.setup-row-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.setup-name { font: 700 14px/1.5 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace; }
+.setup-path, .setup-why { font-size: 13px; color: var(--app-text-muted); margin: 0; overflow-wrap: anywhere; line-height: 1.6; }
+.setup-cmd { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+.setup-cmd code {
+  flex: 1 1 22em; min-width: 0; padding: 4px var(--sp-2); overflow-wrap: anywhere;
+  background: var(--app-card); border: 1px solid var(--app-border); border-radius: var(--radius-sm);
+  font: 13px/1.6 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace;
+}
+.setup-cmd-note { font-size: 13px; color: var(--app-text-muted); }
+.setup-toggle { margin-top: var(--sp-3); }
+.setup-fix-list { display: grid; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.setup-fix-row { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; font-size: 13px; }
+.setup-fix-row code { overflow-wrap: anywhere; font-family: 'SFMono-Regular', 'Noto Sans Mono', ui-monospace, monospace; }
+.setup-fix-mode { color: var(--app-text-muted); font-variant-numeric: tabular-nums; }
+
 /* 実行前の確認 */
 .run-facts { display: grid; grid-template-columns: 9em minmax(0, 1fr); gap: var(--sp-3) var(--sp-4); margin: 0; font-size: 14px; }
 .run-facts dt { color: var(--app-text-sub); font-weight: 700; padding-top: 2px; }

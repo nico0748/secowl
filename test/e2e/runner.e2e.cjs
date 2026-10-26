@@ -102,7 +102,7 @@ async function main() {
   const direct = await win.evaluate(async () => (await fetch('/api/exec/templates')).status)
   assert.equal(direct, 403, '鍵なしの API 呼び出しは 403')
   const keys = await win.evaluate(() => Object.keys(window.secowlDesktop).sort())
-  assert.deepEqual(keys, ['execLaunch', 'execSession', 'setTheme', 'theme'])
+  assert.deepEqual(keys, ['execLaunch', 'execSession', 'setTheme', 'setupFix', 'theme'])
   assert.equal(await win.evaluate(() => JSON.stringify(Object.keys(localStorage)).includes('exec')), false, 'localStorage に鍵を置かない')
 
   for (const theme of ['light', 'dark']) {
@@ -188,6 +188,50 @@ async function main() {
   await win.locator('.page-head').scrollIntoViewIfNeeded()
   await shot('light-07-unsafe-program')
   await win.getByRole('button', { name: /ポートを指定して/ }).click()
+
+  // 6b-2) 「このPCの状態」: 入っていないものの入れ方を出し、権限はネイティブの確認を経て直す
+  await win.locator('.run-setup').scrollIntoViewIfNeeded()
+  const setupText = await win.locator('.run-setup').innerText()
+  assert.match(setupText, /使える 1/)
+  assert.match(setupText, /入っていない 1/)
+  assert.match(setupText, /実行不可 1/)
+  assert.match(setupText, /1 個のコマンドが、ほかのユーザーも書き換えられる場所にあります/)
+  assert.match(setupText, /アプリから 1 件の権限を直せます/)
+  await shot('light-07b-setup')
+  await setTheme('dark')
+  await shot('dark-07b-setup')
+  await setTheme('light')
+
+  assert.equal((fs.statSync(wbin).mode & 0o7777).toString(8), '775')
+  const beforeFix = await app.evaluate(() => globalThis.__secowlTest.confirms.length)
+  await win.getByRole('button', { name: '権限を直す' }).click()
+  await win.waitForSelector('.setup-fix-list')
+  const fixText = await win.locator('.dialog').innerText()
+  assert.match(fixText, /次の 1 件から、ほかのユーザーの書き込みの許可を外します/)
+  assert.match(fixText, /775 → 755/)
+  assert.ok(fixText.includes(wbin), '直す場所をそのまま見せる')
+  await shot('light-07c-setup-fix')
+  await win.getByRole('button', { name: '続ける' }).click()
+  await win.waitForFunction(() => /権限を直しました/.test(document.body.textContent || ''), null, { timeout: 10000 })
+
+  // ネイティブの確認が出てから直っていること（既定はキャンセル）
+  const fixConfirms = await app.evaluate(() => globalThis.__secowlTest.confirms)
+  assert.equal(fixConfirms.length, beforeFix + 1, '権限の修正でもネイティブの確認が 1 回出る')
+  assert.equal(fixConfirms.at(-1).defaultId, 0)
+  assert.equal(fixConfirms.at(-1).buttons[0], 'キャンセル')
+  assert.ok(fixConfirms.at(-1).detail.includes(wbin), 'ネイティブの確認にも直す場所を出す')
+  assert.equal((fs.statSync(wbin).mode & 0o7777).toString(8), '755', '権限が直っている')
+  await win.waitForFunction(() => /使える 2/.test(document.querySelector('.run-setup')?.textContent || ''), null, { timeout: 10000 })
+  // 左のコマンド一覧も読み直し、「実行不可」が消えている
+  await win.waitForFunction(() => !/実行不可/.test(document.querySelector('.run-pick')?.textContent || ''), null, { timeout: 10000 })
+  await shot('light-07d-setup-fixed')
+
+  // 修正の記録が、前の行につながった形で残る
+  const setupLog = path.join(data, '.secowl', 'setup.jsonl')
+  const setupLines = fs.readFileSync(setupLog, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  assert.equal(setupLines.at(-1).event, 'setup.fix')
+  assert.equal(setupLines.at(-1).changed[0].path, wbin)
+  assert.equal(typeof setupLines.at(-1).prev, 'string')
 
   // 6c) 設定画面の Git: 生の出力を除外する行が無い保存先は警告し、ボタンで追記できる
   await win.getByRole('link', { name: '設定' }).first().click()

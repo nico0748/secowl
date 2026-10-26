@@ -27,6 +27,7 @@ import { localOnly } from './lib/guard.js'
 import { checkReport } from './lib/reportable.js'
 import { searchDocs } from './lib/search.js'
 import { createExec, ExecError, JOB_ID_RE } from './lib/exec.js'
+import { createSetup } from './lib/setup.js'
 
 export const app = express()
 // 最初に登録し、静的ファイルを含むすべての要求に効かせます。
@@ -67,6 +68,8 @@ export function setHostBridge(bridge) { host = bridge }
  * 起動（launch）は HTTP のルートを持たず、メインプロセスが IPC で受けて直接呼びます。
  */
 export const execService = createExec()
+/** ツールの導入の点検と権限の修正。修正そのものは HTTP では受けず、メインプロセスが IPC で受けて呼びます。 */
+export const setupService = createSetup({ resolve: (program) => execService.resolveProgram(program) })
 
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest()
 function safeEq(a, b) {
@@ -100,6 +103,9 @@ const execRouter = express.Router({ caseSensitive: true, strict: true })
 execRouter.use('/exec', requireExec)
 execRouter.use('/engagements/:eid/exec', requireExec, requireEngagement)
 execRouter.get('/exec/templates', execWrap(() => execService.listTemplates()))
+// 導入の点検（読み取りだけ）と、権限を直す計画。実際に直すのは IPC からだけです。
+execRouter.get('/exec/setup', execWrap(() => setupService.report()))
+execRouter.post('/exec/setup/fix-plan', execWrap(() => setupService.planFix()))
 execRouter.post('/engagements/:eid/exec/plan', execWrap((req) => execService.plan(req.params.eid, req.body || {})))
 execRouter.get('/engagements/:eid/exec', execWrap((req) => execService.list(req.params.eid)))
 // 実行の記録（監査）のつながりを確かめる。書き換えや削除があると、切れた行の番号を返す
