@@ -36,7 +36,7 @@ export function DashboardPage() {
     ...topTech.map((t, i) => ({ key: t.name, label: t.name, value: t.count, color: CAT_COLORS[i] })),
     ...(restCount > 0 ? [{ key: '__other', label: `その他 ${tech.length - 5} 件`, value: restCount, color: 'var(--dash-cat-other)' }] : []),
   ]
-  const sevSlices = data.severity.map((s) => ({ key: s.key, label: s.ja, value: s.count, color: `var(--dash-sev-${s.key})` }))
+  const sevSlices = data.severity.map((s) => ({ key: s.key, label: s.ja, value: s.count, color: `var(--app-sev-${s.key})` }))
 
   return (
     <>
@@ -129,7 +129,7 @@ export function DashboardPage() {
             <div className="sev-cards">
               {data.severity.map((s) => (
                 <button key={s.key} className="sev-card" onClick={() => nav(`/findings?severity=${s.key}`)}>
-                  <span className="sev-dot" style={{ background: `var(--dash-sev-${s.key})` }} aria-hidden="true">!</span>
+                  <span className={`sev-dot sev-${s.key}`} aria-hidden="true">!</span>
                   <span className="sev-name">{s.label}</span>
                   <span className="sev-count">{s.count}</span>
                   <span style={{ fontSize: 14, color: 'var(--app-text-muted)' }}>{s.ja}</span>
