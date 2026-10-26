@@ -11,6 +11,8 @@ const { _electron } = require('/opt/node22/lib/node_modules/playwright')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
+const http = require('node:http')
+const crypto = require('node:crypto')
 const { execFileSync } = require('node:child_process')
 const assert = require('node:assert/strict')
 
@@ -88,10 +90,31 @@ process.exit(0)
         vars: [{ name: 'target', kind: 'target', required: true, label: '対象のホスト', accept: ['host', 'ip'] }], timeout_sec: 120, hash: 'e2e-2' },
     ],
   }]
+  // ワードリストの取得元の代役。本物の GitHub には触れず、手元の HTTP サーバから取ります。
+  const wlBodies = new Map()
+  const wlCatalog = [
+    { id: 'e2e-common', name: 'よく使われるディレクトリ・ファイル名', use: 'ffuf・gobuster の最初の 1 本', path: 'Discovery/Web-Content/common.txt', saveAs: 'common.txt' },
+    { id: 'e2e-dns', name: 'サブドメイン（上位 5,000）', use: 'amass・subfinder の総当たり', path: 'Discovery/DNS/subdomains.txt', saveAs: 'subdomains.txt' },
+  ].map((f) => {
+    const body = Buffer.from(`# ${f.id}\n${Array.from({ length: 12 }, (_, i) => `${f.id}-${i}`).join('\n')}\n`)
+    wlBodies.set(f.path, body)
+    return { ...f, bytes: body.length, lines: 13, sha256: crypto.createHash('sha256').update(body).digest('hex') }
+  })
+  const wlSrv = http.createServer((req, res) => {
+    const rel = decodeURIComponent(req.url || '').replace(/^\/[0-9a-f]{40}\//, '')
+    const body = wlBodies.get(rel)
+    if (!body) { res.writeHead(404); res.end('no'); return }
+    res.writeHead(200, { 'content-type': 'text/plain' })
+    res.end(body)
+  })
+  await new Promise((r) => wlSrv.listen(0, '127.0.0.1', r))
+  const wlRaw = `http://127.0.0.1:${wlSrv.address().port}`
+
   const cfgFile = path.join(tmp, 'e2e-config.json')
   fs.writeFileSync(cfgFile, JSON.stringify({
     allowed: ['fakenmap', 'fakemissing', 'fakeunsafe'], searchPaths: [bin, wbin], templates,
     installerPaths: [ibin], recipes: { fakemissing: { brew: 'fakemissing', go: null } },
+    wordlistRaw: wlRaw, wordlistCatalog: wlCatalog,
   }))
   const app = await _electron.launch({
     executablePath: path.join(ROOT, 'node_modules/electron/dist/electron'),
@@ -120,7 +143,7 @@ process.exit(0)
   const direct = await win.evaluate(async () => (await fetch('/api/exec/templates')).status)
   assert.equal(direct, 403, '鍵なしの API 呼び出しは 403')
   const keys = await win.evaluate(() => Object.keys(window.secowlDesktop).sort())
-  assert.deepEqual(keys, ['execLaunch', 'execSession', 'setTheme', 'setupFix', 'setupInstall', 'theme'])
+  assert.deepEqual(keys, ['execLaunch', 'execSession', 'setTheme', 'setupFix', 'setupInstall', 'setupWordlists', 'theme'])
   assert.equal(await win.evaluate(() => JSON.stringify(Object.keys(localStorage)).includes('exec')), false, 'localStorage に鍵を置かない')
 
   for (const theme of ['light', 'dark']) {
@@ -275,7 +298,7 @@ process.exit(0)
   const out = await win.locator('.setup-install .run-output').innerText()
   assert.doesNotMatch(out, /\u001b\[/)
   assert.match(out, /==> Pouring 100%/)
-  await win.waitForFunction(() => /入りました 1/.test(document.querySelector('.setup-install')?.textContent || ''), null, { timeout: 20000 })
+  await win.waitForFunction(() => /終わりました 1/.test(document.querySelector('.setup-install')?.textContent || ''), null, { timeout: 20000 })
   await shot('light-07f-install-done')
 
   // 入ったら、点検とコマンド一覧が読み直される
@@ -288,6 +311,44 @@ process.exit(0)
   assert.equal(insLines.at(-1).event, 'setup.install.end')
   assert.equal(insLines.at(-1).status, 'done')
   assert.deepEqual(insLines.at(-2).commands, ['brew install fakemissing'])
+  await win.getByRole('button', { name: '閉じる' }).click()
+  await win.waitForFunction(() => !document.querySelector('.setup-install'), null, { timeout: 5000 })
+
+  // 6b-4) ワードリストを、ネイティブの確認を経て取得する
+  const wlDir = path.join(tmp, 'wordlists')
+  await win.locator('.setup-wordlists').scrollIntoViewIfNeeded()
+  const wlText = await win.locator('.setup-wordlists').innerText()
+  assert.match(wlText, /ありません 2/)
+  assert.ok(wlText.includes(wlDir), '置き場所を見せる')
+  await shot('light-07g-wordlists')
+  const beforeWl = await app.evaluate(() => globalThis.__secowlTest.confirms.length)
+  await win.getByRole('button', { name: '2 本を取得する' }).click()
+  await win.waitForSelector('.dialog .run-facts')
+  const wlDialog = await win.locator('.dialog').innerText()
+  assert.ok(wlDialog.includes(`${wlRaw}/`), '取得先をそのまま見せる')
+  await shot('light-07h-wordlists-confirm')
+  await win.getByRole('button', { name: '取得する', exact: true }).click()
+
+  await win.waitForFunction(() => /終わりました 2/.test(document.querySelector('.setup-install')?.textContent || ''), null, { timeout: 20000 })
+  const wlConfirms = await app.evaluate(() => globalThis.__secowlTest.confirms)
+  assert.equal(wlConfirms.length, beforeWl + 1, '取得でもネイティブの確認が 1 回出る')
+  assert.equal(wlConfirms.at(-1).buttons[0], 'キャンセル')
+  assert.ok(wlConfirms.at(-1).detail.includes(wlDir))
+  for (const f of wlCatalog) {
+    const at = path.join(wlDir, f.saveAs)
+    assert.equal(fs.readFileSync(at).toString(), wlBodies.get(f.path).toString(), `${f.saveAs} を置く`)
+  }
+  assert.deepEqual(fs.readdirSync(wlDir).sort(), ['common.txt', 'subdomains.txt'], '途中のファイルを残さない')
+  const wlLines = fs.readFileSync(path.join(data, '.secowl', 'setup.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  assert.equal(wlLines.at(-1).event, 'setup.wordlists.end')
+  assert.equal(wlLines.at(-1).status, 'done')
+  assert.deepEqual(wlLines.at(-2).ids, ['e2e-common', 'e2e-dns'])
+  // そろったら、点検も実行の入力の候補も読み直される
+  await win.waitForFunction(() => /そろっています/.test(document.querySelector('.setup-wordlists')?.textContent || ''), null, { timeout: 15000 })
+  await win.waitForFunction(() => document.querySelectorAll('#run-wordlists option').length === 2, null, { timeout: 15000 })
+  const wlOptions = await win.evaluate(() => [...document.querySelectorAll('#run-wordlists option')].map((o) => o.value).sort())
+  assert.deepEqual(wlOptions, [path.join(wlDir, 'common.txt'), path.join(wlDir, 'subdomains.txt')].sort(), '実行の入力から選べる')
+  await shot('light-07i-wordlists-done')
   await win.getByRole('button', { name: '閉じる' }).click()
   await win.waitForFunction(() => !document.querySelector('.setup-install'), null, { timeout: 5000 })
 
@@ -344,6 +405,8 @@ process.exit(0)
   const after = fs.readFileSync(path.join(data, EID, '.secowl', 'audit.jsonl'), 'utf8')
   assert.match(after, /アプリの終了/)
 
+  wlSrv.closeAllConnections?.()
+  wlSrv.close()
   log('OK 完了。画面:', SHOTS)
   fs.rmSync(tmp, { recursive: true, force: true })
 }

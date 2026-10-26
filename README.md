@@ -453,21 +453,47 @@ CVSS 計算機とホームのテクノロジー別の色は、以前の版の配
 
 実行ページの上に「このPCの状態」があり、許可したプログラムごとに **使える / 入っていない / 実行不可** を出します。入れ方のコマンドは画面からコピーできます。
 
-手順は 3 つです。
+手順は 4 つです。
 
 1. **Homebrew と Go を用意する**（どちらか一方でも進められます）。Homebrew は [brew.sh](https://brew.sh) の手順で入れます。Go は `brew install go`、または [go.dev/dl](https://go.dev/dl/) から入れ、`~/go/bin` を `PATH` に足します（`echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zprofile`）
 2. **ツールを入れる**。画面の「Homebrew でまとめて入れる」か「Go でまとめて入れる」を押すと、SecOwl から入れられます。ターミナルで入れる場合は `brew install nmap httpx nuclei ffuf gobuster subfinder amass dnsx naabu katana gau`。`whatweb` は Homebrew の formula が無いため、配布元の手順で入れてください
 3. **権限を直す**。Intel 版の Homebrew（`/usr/local`）などは、置き場所がグループに書き込みを許しているため、SecOwl は「実行不可」として起動しません。「権限を直す」を押すと、変える場所の一覧をネイティブの確認で出してから `chmod go-w` を当てます
+4. **ワードリストを取得する**。ffuf・gobuster・subfinder が使う単語の一覧です。「ワードリスト」の「N 本を取得する」を押すと、`~/wordlists/` に置きます
 
 導入の実行にも、コマンドの実行と同じ拘束をかけています。
 
 - 動かすのは `brew` と `go` だけです。引数は `server/lib/tool-install.js` の固定表から組み立て、画面からは「どのツールを」「どちらで」しか渡せません（`knowledge/tools/*.md` を書き換えても、入れるものは変えられません）
 - `brew` と `go` 自身も、ほかのユーザーが書き換えられる場所にあるものは動かしません。その場合は、置き場所が「権限を直す」の対象に入ります
-- 始めるのはデスクトップ版の IPC からだけです。HTTP には計画（`POST /api/exec/setup/install-plan`）と状態（`GET /api/exec/setup/install`）しかありません
+- 始めるのはデスクトップ版の IPC からだけです。HTTP には計画（`POST /api/exec/setup/install-plan`）と進み具合（`GET /api/exec/setup/job`）しかありません
 - 実行の前に、動かす実行ファイルの絶対パスとコマンドをネイティブの確認で見せます（既定はキャンセル）。1 つが失敗しても残りは続け、どれが失敗したかを返します
 - 1 つあたり 20 分で打ち切ります。「中止する」を押すと、プロセスグループごと止めます
 - 導入のときの環境は、コマンドの実行より少し広く渡します。ネットワークと土台（git・curl など）が要るためで、`HTTP_PROXY` などのプロキシの設定と `GOPROXY` ほかもそのまま渡します。`go install` の置き場所は `~/go/bin`（`GOBIN`）に固定します
 - 記録は `<保存先>/.secowl/setup.jsonl` に、権限の修正と同じつながりで残ります（`setup.install.start` / `setup.install.end`）
+
+### ワードリストの取得
+
+探索に使う単語の一覧を、[SecLists](https://github.com/danielmiessler/SecLists)（MIT）の決まった版から取ります。置き場所はホームフォルダの `wordlists/` で、テンプレートが受け付ける場所です。
+
+既定で取るのは 3 本です。
+
+| ファイル | 中身 | 使うところ |
+| --- | --- | --- |
+| `common.txt` | よく使われるディレクトリ・ファイル名（4,750 行） | ffuf・gobuster の最初の 1 本 |
+| `raft-medium-directories.txt` | ディレクトリ（29,999 行） | 共通のものだけでは足りないときの総当たり |
+| `subdomains-top1million-5000.txt` | サブドメイン 上位 5,000 | amass・subfinder の総当たり |
+
+全体（1GB 以上）が要るときは「SecLists 全体も取得する」で `~/wordlists/SecLists/` に `git clone --depth 1 --branch <タグ>` します。必要になってからで十分です。
+
+取得にも、導入と同じ拘束をかけています。
+
+- 取るものと取得先は `server/lib/wordlist-catalog.js` の固定表だけです。画面からは「どれを」しか渡せません（タグとコミットも表に固定してあり、`knowledge/` からは変えられません）
+- 取ったあとに SHA-256 を照合し、表と違えば保存しません。置くときは一時ファイルに書いてから付け替えるので、途中で止めても中途半端なものが残りません
+- 始めるのはデスクトップ版の IPC からだけです。HTTP には状態（`GET /api/exec/setup/wordlists`）と計画（`POST /api/exec/setup/wordlist-plan`）しかありません
+- 実行の前に、取得先の URL と置き場所をネイティブの確認で見せます（既定はキャンセル）
+- 記録は `<保存先>/.secowl/setup.jsonl` に残ります（`setup.wordlists.start` / `setup.wordlists.end`）
+- 置き場所にあるワードリストは、実行ページの `wordlist` の入力で候補として選べます（自分で置いたものも含みます）
+
+更新するときは、新しいタグのコミットを選び、`wordlist-catalog.js` の `bytes`・`lines`・`sha256` を取り直してください。
 
 権限の修正には、コマンドの実行と同じ拘束をかけています。
 
@@ -481,7 +507,7 @@ CVSS 計算機とホームのテクノロジー別の色は、以前の版の配
 テンプレートを足すときの注意:
 
 - 変数 1 つは引数 1 個です。空のまま引数を省く書き方はないので、`required: false` にするときは `default` が必要です（読み込み時に検査します）
-- ffuf / gobuster のワードリストは、`/usr/share`・`/usr/local/share`・`/opt/homebrew/share`・`/opt`・自分のホームフォルダ（`/Users/<名前>`、`/home/<名前>`）の直下にある `wordlists`・`seclists`・`SecLists`・`dirb`・`dirbuster` の下の `.txt` / `.lst` だけです。ほかの場所のファイルや `..` は通しません（独自のワードリストは `~/wordlists/` に置くと使えます）
+- ffuf / gobuster のワードリストは、`/usr/share`・`/usr/local/share`・`/opt/homebrew/share`・`/opt`・自分のホームフォルダ（`/Users/<名前>`、`/home/<名前>`）の直下にある `wordlists`・`seclists`・`SecLists`・`dirb`・`dirbuster` の下の `.txt` / `.lst` だけです。ほかの場所のファイルや `..` は通しません（独自のワードリストも `~/wordlists/` に置けば、入力の候補に出ます）
 
 Electron での実機確認は `xvfb-run -a node test/e2e/runner.e2e.cjs`（Playwright が必要。`npm test` には含めません。本物のツールは使わず、代役のプログラムを使います）。
 

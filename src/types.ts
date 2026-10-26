@@ -421,22 +421,55 @@ export interface InstallPlan {
   steps: { program: string; command: string }[]
 }
 
-export type InstallStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'stopped' | 'timeout'
+export type SetupStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'stopped' | 'timeout'
 
-export interface InstallJob {
+/** 時間のかかる環境構築の作業（導入・ワードリストの取得）。同時に動くのは 1 件です。 */
+export interface SetupJob {
   jobId: string
-  via: 'brew' | 'go'
-  viaLabel: string
+  kind: 'setup.install' | 'setup.wordlists'
+  title: string
   status: 'running' | 'done' | 'failed' | 'stopped'
   startedAt: string
   endedAt: string | null
-  steps: { program: string; command: string; status: InstallStepStatus; exitCode: number | null; error: string | null }[]
+  steps: { key: string; label: string; command: string | null; status: SetupStepStatus; exitCode: number | null; error: string | null }[]
   output: string
 }
 
-export type InstallStartResult =
+export type SetupStartResult =
   | { ok: true; jobId: string }
   | { ok: false; cancelled?: boolean; status?: number; code?: string; error?: string }
+
+/** 取得できるワードリスト 1 本の状態 */
+export interface WordlistFile {
+  id: string
+  name: string
+  use: string
+  saveAs: string
+  path: string
+  bytes: number
+  lines: number
+  state: 'ok' | 'missing' | 'changed' | 'other'
+  reason?: string
+}
+
+export interface WordlistReport {
+  dir: string
+  source: { name: string; repo: string; license: string; tag: string }
+  files: WordlistFile[]
+  missing: number
+  full: { dir: string; present: boolean; command: string }
+  /** このPCにあるワードリスト（実行の入力で選べるもの） */
+  available: { path: string; name: string; bytes: number }[]
+}
+
+export interface WordlistPlan {
+  planId: string
+  expiresAt: string
+  dir: string
+  source: { name: string; repo: string; tag: string }
+  files: { id: string; name: string; saveAs: string; bytes: number; url: string }[]
+  full: { dir: string; command: string } | null
+}
 
 export interface SetupFixPlan {
   planId: string
