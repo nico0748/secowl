@@ -172,7 +172,15 @@ test('SecLists 全体は git clone で取り、すでにあるときは断る', 
     git('commit', '-q', '-m', 'first')
     git('tag', SOURCE.tag)
 
-    t.svc.configure({ repo: origin.replace(/\.git$/, '') })
+    // git は、権限の緩い場所（CI の /opt/homebrew/bin など）にあると動かさない決まりなので、
+    // 本物に渡すだけの代役を、このテストの一時フォルダに置いて使います。
+    const gitDir = path.join(t.home, 'gitbin')
+    fs.mkdirSync(gitDir, { mode: 0o755 })
+    const realGit = execFileSync('sh', ['-c', 'command -v git']).toString().trim()
+    fs.writeFileSync(path.join(gitDir, 'git'), `#!/bin/sh\nexec ${realGit} "$@"\n`, { mode: 0o755 })
+    fs.chmodSync(path.join(gitDir, 'git'), 0o755)
+
+    t.svc.configure({ repo: origin.replace(/\.git$/, ''), gitPaths: [gitDir] })
     const p = t.svc.plan({ full: true })
     assert.equal(p.files.length, 0)
     assert.match(p.full.command, new RegExp(`^git clone --depth 1 --branch ${SOURCE.tag} `))
