@@ -1,7 +1,6 @@
 // 色の直書きが残っていないかを調べます。画面の色は src/styles/tokens.css の --app-* / --md-sys-color-* だけを使います。
 // 例外: tokens.css（値の定義）、書き出し（server/lib/export-colors.js・exporters.js・docx.js。常にライト）、
-//       ウィンドウの地の色（electron/main.js・index.html。tokens.css の --app-bg と同じ値）、
-//       CVSS 計算機の以前の版の色（src/styles/cvss-legacy.css）。
+//       ウィンドウの地の色（electron/main.js・index.html。tokens.css の --app-bg と同じ値）。
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,7 +8,6 @@ import { fileURLToPath } from 'node:url'
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ALLOW = new Set([
   'src/styles/tokens.css',
-  'src/styles/cvss-legacy.css', // CVSS 計算機だけを以前の版の色で描く
   'server/lib/export-colors.js', 'server/lib/exporters.js', 'server/lib/docx.js',
   'electron/main.js', 'index.html',
 ])

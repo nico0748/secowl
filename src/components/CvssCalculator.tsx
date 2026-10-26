@@ -4,9 +4,8 @@ import {
   parseVector, buildVector31, buildVector40, score31, severityFromScore,
 } from '../../shared/cvss.js'
 import type { MetricDef } from '../../shared/cvss.js'
-import { SEV_JA } from './Severity'
 import type { SeverityKey } from '../types'
-import '../styles/cvss-legacy.css'
+import { SeverityPill } from './Severity'
 
 
 interface Props {
@@ -77,9 +76,7 @@ export function CvssCalculator({ initialVector = '', onApply, onClose }: Props) 
               <div style={{ fontSize: 24, fontWeight: 700 }}>{result ? result.environmental.toFixed(1) : '—'}</div>
             </div>
             {sev && (
-              <span className={`cvss-sev-pill ${sev}`}>
-                {sev.toUpperCase()}・{SEV_JA[sev as SeverityKey]}
-              </span>
+              <SeverityPill value={sev as SeverityKey} />
             )}
             <code style={{ fontSize: 13, color: 'var(--app-text-sub)', marginLeft: 'auto', wordBreak: 'break-all', maxWidth: 420 }}>
               {vector31 || '基本評価の 8 項目をすべて選ぶとベクタが決まります'}
