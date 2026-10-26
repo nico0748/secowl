@@ -22,7 +22,7 @@ export const EXPORT_COLORS = {
 /** 深刻度。signal（面）・on（面の上の文字）・text（色付きの文字）・border（枠） */
 export const EXPORT_SEV = {
   critical: { signal: '#850000', on: '#FFFFFF', text: '#850000', border: '#850000' }, // Red 1100
-  high: { signal: '#CE0000', on: '#FFFFFF', text: '#CE0000', border: '#CE0000' }, // Red 900
+  high: { signal: '#AC3E00', on: '#FFFFFF', text: '#AC3E00', border: '#AC3E00' }, // Orange 900
   medium: { signal: '#B78F00', on: '#1A1A1A', text: '#806300', border: '#927200' }, // Yellow 700 / 1000 / 900
   low: { signal: '#264AF4', on: '#FFFFFF', text: '#0031D8', border: '#0031D8' }, // Blue 700 / 800
   info: { signal: '#666666', on: '#FFFFFF', text: '#666666', border: '#666666' }, // Solid Gray 600
