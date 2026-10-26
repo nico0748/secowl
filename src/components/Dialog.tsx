@@ -33,12 +33,14 @@ export function useDialogFocus(ref: RefObject<HTMLElement>) {
   }, [ref])
 }
 
-export function Dialog({ title, onClose, children, wide = false }: {
+export function Dialog({ title, onClose, children, wide = false, className }: {
   title: string
   onClose: () => void
   children: ReactNode
   /** 広いダイアログ（2 列の入力欄など） */
   wide?: boolean
+  /** ダイアログの中だけに効かせるスタイルのクラス */
+  className?: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -51,7 +53,7 @@ export function Dialog({ title, onClose, children, wide = false }: {
 
   return (
     <div className="dialog-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div ref={ref} className={`dialog${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={ref} className={`dialog${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <h2>{title}</h2>
         {children}
       </div>
