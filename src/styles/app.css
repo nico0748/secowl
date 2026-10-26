@@ -257,15 +257,13 @@ a { color: var(--app-primary); }
   border: 1.5px solid var(--sev-bg);
   background: var(--sev-bg); color: var(--sev-on); white-space: nowrap;
 }
-/* Info は塗らない（枠だけ）。輪のアイコンは info の色で描く */
+/* Info は塗らない（枠だけ） */
 .sev-pill.sev-info { background: transparent; border-color: var(--app-sev-info-border); color: var(--app-text); }
 
-/* 深刻度の形（Severity.tsx）。ピルの中では文字色で、単独では signal 色で塗る */
+/* 深刻度の形（Severity.tsx。フィルタのチップと件数カード）。signal 色で塗る */
 .sev-icon, .sev-badge { flex: none; display: block; overflow: visible; }
 .sev-shape { fill: var(--sev-bg); }
 .sev-shape.ring { fill: none; stroke: var(--app-sev-info); }
-.sev-pill .sev-shape { fill: currentColor; }
-.sev-pill .sev-shape.ring { fill: none; stroke: var(--app-sev-info); }
 .sev-badge text { fill: var(--sev-on); font-weight: 700; font-family: inherit; }
 .sev-badge.sev-info text { fill: var(--app-text); }
 /* 地やチップの上に単独で置く形には、細い輪郭を付けて面とのコントラストを確保する */
