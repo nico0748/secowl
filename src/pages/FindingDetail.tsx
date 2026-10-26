@@ -161,7 +161,7 @@ export function FindingDetailPage() {
       )}
 
       {calc && (
-        <Dialog title="CVSS 計算機" onClose={() => setCalc(false)}>
+        <Dialog title="CVSS 計算機" className="cvss-legacy" onClose={() => setCalc(false)}>
           <CvssCalculator
             initialVector={finding.cvss_vector}
             onClose={() => setCalc(false)}
