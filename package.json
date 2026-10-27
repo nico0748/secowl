@@ -15,7 +15,7 @@
     "server": "node server/index.js",
     "app": "npm run build && node scripts/patch-electron-app.mjs && electron .",
     "app:nobuild": "node scripts/patch-electron-app.mjs && electron .",
-    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
     "typecheck": "tsc --noEmit",
     "seed": "node scripts/seed-mock.js",
     "mcp": "node mcp/server.js",
@@ -64,6 +64,7 @@
       "knowledge/**",
       "templates/**",
       "dist/**",
+      "public/tool-icons/**",
       "package.json"
     ],
     "mac": {
@@ -72,16 +73,19 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],
       "identity": null,
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "dmg": {
       "title": "SecOwl"
     },
-    "asar": false
+    "asar": false,
+    "afterPack": "scripts/after-pack.cjs"
   }
 }

@@ -25,11 +25,12 @@ npm run app        # ビルドして Electron のウィンドウを開きます
 配布できる `.app` / `.dmg` を作る場合（macOS でのみ実行できます）:
 
 ```bash
-npm run dist:mac   # release/ に .dmg が出ます
+npm run dist:mac   # release/ に Apple Silicon 用（arm64）と Intel 用（x64）の .dmg が出ます
 ```
 
-署名と公証は行いません。初回起動時は Finder で右クリック →「開く」を選んでください。
-他の人に配るなら Apple Developer Program（年 99 米ドル）での署名が必要です。
+チームメイトへは `.dmg` だけを渡します。`v0.3.0` のようなタグを push すると、GitHub Actions が `.dmg` を作って Releases に置きます。
+Developer ID での署名と公証はせず、ad-hoc 署名だけをかけます。受け取った人は初回だけ起動の許可が要ります。
+入れ方と配る手順は [docs/INSTALL.md](docs/INSTALL.md) にまとめています。
 
 開発中は次のコマンドを使います。Vite の開発サーバ（5173）が API を 5174 へ転送します。
 
