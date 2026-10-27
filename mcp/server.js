@@ -25,7 +25,7 @@ import { dashboard } from '../server/lib/stats.js'
 const READONLY = process.env.SECOWL_MCP_READONLY === '1'
 
 const server = new McpServer(
-  { name: 'secowl', version: '0.3.0' },
+  { name: 'secowl', version: '0.4.0' },
   {
     instructions: [
       'SecOwl は脆弱性診断の記録を Markdown で管理するアプリです。',
