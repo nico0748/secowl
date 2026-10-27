@@ -7,6 +7,7 @@ import { McpSection } from '../components/McpSection'
 import { ThemeSection } from '../components/ThemeSection'
 import { EngagementDialog } from '../components/EngagementDialog'
 import { useSaveEngagement } from '../components/EngagementInfo'
+import { ExportZipDialog, ImportZipDialog } from '../components/TransferDialogs'
 import type { Engagement } from '../types'
 
 export function SettingsPage() {
@@ -14,6 +15,8 @@ export function SettingsPage() {
   const [root, setRoot] = useState(meta?.dataRoot ?? '')
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Engagement | null>(null)
+  const [exporting, setExporting] = useState<Engagement | null>(null)
+  const [importing, setImporting] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const saveEngagement = useSaveEngagement()
 
@@ -90,6 +93,7 @@ export function SettingsPage() {
                 テンプレートを補う
               </button>
             )}
+            <button className="btn quiet" onClick={() => setImporting(true)}>ZIP から取り込む</button>
             <button className="btn" onClick={() => setOpen(true)}><IconPlus />診断対象を作る</button>
           </div>
         </div>
@@ -115,6 +119,7 @@ export function SettingsPage() {
                       <Link className="btn quiet small" to="/playbook">進め方</Link>
                       <Link className="btn quiet small" to="/scope" onClick={() => setCurrentId(e.id)}>事前準備</Link>
                       <button className="btn quiet small" onClick={() => setEditing(e)}>編集</button>
+                      <button className="btn quiet small" onClick={() => setExporting(e)}>ZIP に書き出す</button>
                       <button className="btn quiet small" onClick={() => setCurrentId(e.id)}>切り替える</button>
                     </div>
                   </td>
@@ -140,6 +145,20 @@ export function SettingsPage() {
             setCurrentId(created.id)
             setOpen(false)
             notify('診断対象フォルダと 6 種類の Markdown を生成しました。ホームの「進め方」から着手できます')
+          }}
+        />
+      )}
+
+      {exporting && <ExportZipDialog engagement={exporting} onClose={() => setExporting(null)} />}
+
+      {importing && (
+        <ImportZipDialog
+          onClose={() => setImporting(false)}
+          onImported={async (id, name) => {
+            await reloadEngagements()
+            setCurrentId(id)
+            setImporting(false)
+            notify(`「${name}」を取り込みました（${id}）`)
           }}
         />
       )}

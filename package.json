@@ -33,6 +33,7 @@
     "docx": "^9.5.1",
     "express": "^4.21.2",
     "fast-xml-parser": "^4.5.3",
+    "fflate": "^0.8.2",
     "gray-matter": "^4.0.3",
     "marked": "^14.1.4",
     "zod": "^4.6.5"

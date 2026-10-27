@@ -31,6 +31,7 @@ import { createInstall } from './lib/install.js'
 import { createJobRunner } from './lib/setup-job.js'
 import { createWordlists } from './lib/wordlists.js'
 import { createSetup } from './lib/setup.js'
+import { exportEngagement, previewImport, importEngagement, TransferError, LIMITS as TRANSFER_LIMITS } from './lib/transfer.js'
 
 export const app = express()
 // 最初に登録し、静的ファイルを含むすべての要求に効かせます。
@@ -340,6 +341,42 @@ app.get('/api/engagements/:eid/report.docx', async (req, res) => {
     res.send(buf)
   } catch (err) {
     res.status(400).json({ error: String(err.message || err) })
+  }
+})
+
+/* ---------------- 診断対象の受け渡し（ZIP） ---------------- */
+
+const transferError = (res, err) => {
+  if (err instanceof TransferError) return res.status(err.status).json({ error: err.message, code: err.code })
+  res.status(400).json({ error: String(err?.message || err) })
+}
+
+app.get('/api/engagements/:eid/export.zip', (req, res) => {
+  try {
+    const { filename, buffer } = exportEngagement(req.params.eid, { includeEvidence: req.query.evidence !== '0' })
+    res.type('application/zip')
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`)
+    res.send(buffer)
+  } catch (err) {
+    transferError(res, err)
+  }
+})
+
+// 本文は ZIP そのもの（Content-Type: application/zip）。確認（preview）は書き込みをしません。
+const rawZip = express.raw({ type: 'application/zip', limit: TRANSFER_LIMITS.zipBytes })
+const zipBody = (req, res, next) => rawZip(req, res, (err) => {
+  if (!err) return next()
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'ZIP ファイルが大きすぎます', code: 'TOO_LARGE' })
+  res.status(400).json({ error: 'ZIP ファイルを受け取れませんでした', code: 'BAD_BODY' })
+})
+app.post('/api/transfer/preview', zipBody, (req, res) => {
+  try { res.json(previewImport(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0))) } catch (err) { transferError(res, err) }
+})
+app.post('/api/transfer/import', zipBody, (req, res) => {
+  try {
+    res.json(importEngagement(Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0), { id: req.query.id ? String(req.query.id) : undefined }))
+  } catch (err) {
+    transferError(res, err)
   }
 })
 
