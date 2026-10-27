@@ -1,0 +1,63 @@
+name: release
+# v から始まるタグ（例: v0.3.0）を push すると、macOS 用の .dmg を作って GitHub Releases に置きます。
+# 配布の設定を変えた PR では、.dmg を作れるかだけを確かめ、成果物（Artifacts）として残します。
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - scripts/after-pack.cjs
+      - build/**
+      - electron/**
+      - .github/workflows/release.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  dmg:
+    runs-on: macos-latest
+    env:
+      # Developer ID では署名しません。キーチェーンの証明書を拾いにいかないようにします。
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: タグと package.json の version が合っているか確かめる
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          v="$(node -p "require('./package.json').version")"
+          if [ "v$v" != "$GITHUB_REF_NAME" ]; then
+            echo "タグ $GITHUB_REF_NAME と package.json の version $v が違います" >&2
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist:mac
+      - name: 署名が中身と合っているか確かめる
+        run: |
+          for app in release/mac*/SecOwl.app; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+            lipo -archs "$app/Contents/MacOS/SecOwl"
+          done
+          test -d release/mac-arm64/SecOwl.app/Contents/Resources/app/public/tool-icons
+      - name: チェックサムを作る
+        run: cd release && shasum -a 256 *.dmg > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SecOwl-dmg
+          path: |
+            release/*.dmg
+            release/SHA256SUMS.txt
+          retention-days: 14
+      - name: GitHub Releases に置く
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/*.dmg release/SHA256SUMS.txt \
+            --title "SecOwl $GITHUB_REF_NAME" --generate-notes
