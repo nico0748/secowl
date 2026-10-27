@@ -1,4 +1,4 @@
-import type { ExecAudit, ExecJob, ExecLaunchResult, ExecPlan, ExecStreamEvent, ExecTool, InstallPlan, SetupFixPlan, SetupFixResult, SetupJob, SetupReport, SetupStartResult, WordlistPlan, WordlistReport, WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
+import type { ExecAudit, ExecJob, ExecLaunchResult, ExecPlan, ExecStreamEvent, ExecTool, InstallPlan, SetupFixPlan, SetupFixResult, SetupJob, SetupReport, SetupStartResult, WordlistPlan, WordlistReport, WriteConflict, ExcludedFinding, ReportCheck, SearchHit, Dashboard, Doc, Engagement, Evidence, Finding, GitCommit, GitStatus, ImportResult, Knowledge, TransferImportResult, TransferPreview, McpInfo, Meta, PlaybookPhase, Progress, Surface, ToolLog } from './types'
 
 /** 読み込んだあとで別の場所からファイルが更新されていたため、保存しなかったことを示します（409）。 */
 export class StaleWriteError extends Error {
@@ -219,4 +219,14 @@ export const api = {
   },
 
   docxUrl: (eid: string) => `/api/engagements/${encodeURIComponent(eid)}/report.docx`,
+
+  /** 診断対象を ZIP で書き出す URL（チームメイトへの受け渡し用） */
+  exportZipUrl: (eid: string, opts: { evidence: boolean }) =>
+    `/api/engagements/${encodeURIComponent(eid)}/export.zip?evidence=${opts.evidence ? 1 : 0}`,
+  /** ZIP の中身を確かめます。書き込みはしません。 */
+  transferPreview: (file: Blob) =>
+    call<TransferPreview>('/api/transfer/preview', { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: file }),
+  /** ZIP を新しい診断対象として取り込みます。id を省略すると ZIP の ID を使います。 */
+  transferImport: (file: Blob, id?: string) =>
+    call<TransferImportResult>(`/api/transfer/import${id ? `?id=${encodeURIComponent(id)}` : ''}`, { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: file }),
 }

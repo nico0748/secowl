@@ -47,6 +47,7 @@ xattr -dr com.apple.quarantine /Applications/SecOwl.app
 ## 4. 使い始める
 
 - 調査データは `~/Documents/SecOwl` に保存されます。場所は「設定」画面で変えられます
+- ほかの人から診断対象の ZIP を受け取ったら、「設定」画面の「ZIP から取り込む」で開きます。渡すときは診断対象の一覧の「ZIP に書き出す」です
 - 診断ツール（nmap・ffuf など）は「実行」画面の上にある「このPCの状態」から入れられます。Homebrew か Go が要ります。
   Intel Mac の Homebrew（`/usr/local`）は、先に同じ画面の「権限を直す」が要ることがあります（README の「環境構築」）
 - 保存先の Git 版管理を使うときは、Xcode Command Line Tools が要ります（`xcode-select --install`。Homebrew を入れてあれば入っています）

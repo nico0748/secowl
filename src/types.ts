@@ -521,3 +521,32 @@ export interface WriteConflict {
   file?: boolean
   checklist?: string
 }
+
+/** 診断対象の ZIP を取り込む前の確認（POST /api/transfer/preview） */
+export interface TransferPreview {
+  id: string
+  name: string
+  client: string
+  period_from: string
+  period_to: string
+  exported_at: string
+  app_version: string
+  files: number
+  bytes: number
+  findings: number
+  surfaces: number
+  evidence: number
+  /** 同じ ID の診断対象がすでにある */
+  exists: boolean
+  /** 取り込み先として空いている ID（exists のときは <ID>-2 など） */
+  suggestedId: string
+}
+
+export interface TransferImportResult {
+  id: string
+  name: string
+  files: number
+  bytes: number
+  renamed: boolean
+  from: string
+}
