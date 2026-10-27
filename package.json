@@ -1,6 +1,6 @@
 {
   "name": "secowl",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "脆弱性調査支援アプリケーション — 偵察・列挙／脆弱性調査／トリアージ／報告書をローカルのMarkdownで管理する",
